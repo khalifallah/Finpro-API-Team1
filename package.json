@@ -1,0 +1,36 @@
+{
+	"name": "api",
+	"version": "1.0.0",
+	"description": "Purwadhika 2025 Mini Project API Backend",
+	"main": "index.js",
+	"scripts": {
+		"dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+		"build": "tsc",
+		"start": "node dist/index.js",
+		"studio": "npx prisma studio",
+		"migrate:dev": "npx prisma migrate dev",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"@prisma/client": "^6.16.2",
+		"bcrypt": "^6.0.0",
+		"cors": "^2.8.5",
+		"dotenv": "^17.2.2",
+		"express": "^5.1.0",
+		"jsonwebtoken": "^9.0.2",
+		"multer": "^2.0.2",
+		"yup": "^1.7.0"
+	},
+	"devDependencies": {
+		"@types/bcrypt": "^6.0.0",
+		"@types/cors": "^2.8.19",
+		"@types/express": "^5.0.3",
+		"@types/jsonwebtoken": "^9.0.10",
+		"@types/multer": "^2.0.0",
+		"prisma": "^6.16.2",
+		"ts-node-dev": "^2.0.0",
+		"typescript": "^5.9.2"
+	}
+}

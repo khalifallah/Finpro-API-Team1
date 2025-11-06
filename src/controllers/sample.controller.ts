@@ -5,7 +5,7 @@ export default new (class SampleController {
   getSampleData(req: Request, res: Response, next: NextFunction): void {
     res
       .status(200)
-      .send(responseBuilder(200, "Samples fetched successfully! Wow!", []));
+      .send(responseBuilder(200, "Samples fetched successfully! Wow 100!", []));
   }
 
   createSampleData(req: Request, res: Response, next: NextFunction): void {

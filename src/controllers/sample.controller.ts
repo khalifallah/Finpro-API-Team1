@@ -12,7 +12,9 @@ export default new (class SampleController {
     // Logic to create sample data
     res
       .status(201)
-      .send(responseBuilder(201, "Sample created successfully", req.body));
+      .send(
+        responseBuilder(201, "Sample created successfully wow! 200", req.body)
+      );
   }
 
   updateSampleData(req: Request, res: Response, next: NextFunction): void {

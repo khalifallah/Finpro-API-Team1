@@ -11,6 +11,7 @@ import { APP_NAME, PORT } from "./config/app.config";
 import AppError from "./errors/app.error";
 import sampleRoute from "./routes/sample.route";
 import corsOptions from "./middlewares/express/cors";
+import adminRoutes from "./routes/admin.route";
 
 export default class App {
   public app: Application;
@@ -36,8 +37,11 @@ export default class App {
     apiRouter.get("/", (_: Request, res: Response) =>
       res.send(`Welcome to the ${APP_NAME} API`)
     );
-    // Define routes here
+
+    //* Define routes here
     apiRouter.use("/samples", sampleRoute.useRouter());
+
+    apiRouter.use("/admin" , adminRoutes);
   }
 
   private errorHandlers(): void {

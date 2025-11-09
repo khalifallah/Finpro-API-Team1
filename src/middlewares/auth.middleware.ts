@@ -31,7 +31,7 @@ export const adminGuard = async (
 ) => {
 	try {
 		if (!req.user) throw new AppError("User not authenticated", 401);
-		if (req.user.role !== "ADMIN")
+		if (req.user.role !== "STORE_ADMIN" && req.user.role !== "SUPER_ADMIN")
 			throw new AppError("Access denied: Admins only", 403);
 		next();
 	} catch (error) {

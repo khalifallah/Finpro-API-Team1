@@ -1,5 +1,5 @@
-import { User } from "../generated/prisma";
+import { User } from "../generated/prisma-client";
 
-type TUser = Omit<User, "password"> | null;
+type TUser = Omit<User, "passwordHash"> | null;
 
 export default TUser;

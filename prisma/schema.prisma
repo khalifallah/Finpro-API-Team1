@@ -6,26 +6,496 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  output = "../src/generated/prisma-client"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-enum Role {
-  ADMIN
+
+//----------------------------------------------//
+
+/// Pembeli biasa, Admin pengelola toko/cabang, Admin pengelola semua data
+enum UserRole {
   USER
+  STORE_ADMIN
+  SUPER_ADMIN
+
+  @@map("user_role") // Opsional: mempertahankan nama enum yang lebih sesuai di DB
 }
+
+/// Menunggu Pembayaran, Menunggu Konfirmasi Pembayaran, Diproses, Dikirim, Pesanan Dikonfirmasi, Dibatalkan
+enum OrderStatus {
+  PENDING_PAYMENT
+  PENDING_CONFIRMATION
+  PROCESSING
+  SHIPPED
+  CONFIRMED
+  CANCELLED
+
+  @@map("order_status")
+}
+
+enum VoucherType {
+  NOMINAL
+  PERCENTAGE
+
+  @@map("voucher_type")
+}
+
+/// Untuk total perbelanjaan, Untuk ongkos kirim
+enum VoucherTarget {
+  TRANSACTION
+  SHIPPING
+
+  @@map("voucher_target")
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+
+  @@map("payment_status")
+}
+
+enum PaymentMethod {
+  MANUAL_TRANSFER
+  PAYMENT_GATEWAY
+  // tambahkan metode lain jika perlu
+
+  @@map("payment_method_enum")
+}
+
+//----------------------------------------------//
+// 1. USERS & AUTH
+//----------------------------------------------//
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  fullName                  String    @map("full_name")
+  email                     String    @unique @db.VarChar(255)
+  /// Password di-hash, null jika social login
+  passwordHash              String?   @map("password_hash")
+  /// URL ke foto profil
+  photoUrl                  String?   @map("photo_url") @db.Text()
+  role                      UserRole  @default(USER)
+  /// Hanya untuk role store_admin
+  storeId                   Int?      @map("store_id")
+  /// Null jika belum verifikasi
+  emailVerifiedAt           DateTime? @map("email_verified_at")
+  verificationToken         String?   @map("verification_token")
+  verificationExpiresAt     DateTime? @map("verification_expires_at")
+  resetPasswordToken        String?   @map("reset_password_token")
+  resetPasswordExpiresAt    DateTime? @map("reset_password_expires_at")
+
+  // Relasi
+  store                     Store?    @relation(fields: [storeId], references: [id])
+  socialAccounts            SocialAccount[]
+  userAddresses             UserAddress[]
+  referralCode              ReferralCode?
+  stockJournalAdmin         StockJournal[] @relation("AdminChanges") // Admin yang mengubah stok (jika manual)
+  paymentsConfirmedBy       Payment[] @relation("PaymentConfirmationAdmin") // Admin yang konfirmasi pembayaran
+  orders                    Order[]
+  userVouchers              UserVoucher[]
+  cart                      Cart?
 
   @@map("users")
+}
+
+/// Untuk Google/FB/Twitter login
+model SocialAccount {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  userId                    Int       @map("user_id")
+  provider                  String    @db.VarChar(255)
+  providerUserId            String    @map("provider_user_id") @db.VarChar(255)
+
+  // Relasi
+  user                      User      @relation(fields: [userId], references: [id])
+
+  // Indexes
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("social_accounts")
+}
+
+/// User bisa punya banyak alamat
+model UserAddress {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  userId                    Int       @map("user_id")
+  /// Misal: Rumah, Kantor
+  label                     String?
+  fullAddress               String    @db.Text() @map("full_address")
+  latitude                  Decimal   @db.Decimal(10, 8)
+  longitude                 Decimal   @db.Decimal(11, 8)
+  isMain                    Boolean   @default(false) @map("is_main")
+
+  // Relasi
+  user                      User      @relation(fields: [userId], references: [id])
+  orders                    Order[]
+
+  @@map("user_addresses")
+}
+
+model ReferralCode {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  /// User pemilik kode referral
+  userId                    Int       @unique @map("user_id")
+  code                      String    @unique @db.VarChar(255)
+
+  // Relasi
+  user                      User      @relation(fields: [userId], references: [id])
+
+  @@map("referral_codes")
+}
+
+//----------------------------------------------//
+// 2. STORES & PRODUCTS
+//----------------------------------------------//
+
+/// Toko cabang di lokasi berbeda
+model Store {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  name                      String    @db.VarChar(255)
+  address                   String?   @db.Text()
+  latitude                  Decimal   @db.Decimal(10, 8)
+  longitude                 Decimal   @db.Decimal(11, 8)
+
+  // Relasi
+  users                     User[]
+  productStocks             ProductStock[]
+  discountRules             DiscountRule[]
+  orders                    Order[]
+
+  @@map("stores")
+}
+
+/// Kategori Produk
+model Category {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  name                      String    @unique @db.VarChar(255)
+
+  // Relasi
+  products                  Product[]
+
+  @@map("categories")
+}
+
+/// Data master produk, sama di semua toko
+model Product {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  categoryId                Int       @map("category_id")
+  name                      String    @unique @db.VarChar(255)
+  description               String?   @db.Text()
+  /// Harga dasar produk
+  defaultPrice              Int       @map("default_price")
+
+  // Relasi
+  category                  Category  @relation(fields: [categoryId], references: [id])
+  productImages             ProductImage[]
+  productStocks             ProductStock[]
+  discountRules             DiscountRule[]
+  vouchersTargeting         Voucher[] @relation("TargetProduct")
+  cartItems                 CartItem[]
+  orderItems                OrderItem[]
+
+  @@map("products")
+}
+
+/// Produk bisa punya banyak foto
+model ProductImage {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  productId                 Int       @map("product_id")
+  /// Validasi ext dan size di server
+  imageUrl                  String    @map("image_url") @db.Text() // consider @db.Text() if long URL
+
+  // Relasi
+  product                   Product   @relation(fields: [productId], references: [id])
+
+  @@map("product_images")
+}
+
+//----------------------------------------------//
+// 3. INVENTORY (STOK)
+//----------------------------------------------//
+
+/// Stok barang per toko
+model ProductStock {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  productId                 Int       @map("product_id")
+  storeId                   Int       @map("store_id")
+  quantity                  Int       @default(0)
+
+  // Relasi
+  product                   Product   @relation(fields: [productId], references: [id])
+  store                     Store     @relation(fields: [storeId], references: [id])
+  stockJournals             StockJournal[]
+
+  // Indexes
+  @@unique([productId, storeId], map: "product_store_stock")
+  @@map("product_stocks")
+}
+
+/// History perubahan stok
+model StockJournal {
+  // Field dari TablePartial pk_id
+  id                        Int       @id @default(autoincrement())
+
+  productStockId            Int       @map("product_stock_id")
+  /// Admin yg mengubah (jika manual)
+  adminId                   Int?      @map("admin_id")
+  /// Jika perubahan krn pesanan
+  orderId                   Int?      @map("order_id")
+  /// Positif untuk + stok, negatif untuk - stok
+  quantityChange            Int       @map("quantity_change")
+  /// Misal: "order_created", "manual_update", "order_cancelled"
+  reason                    String    @db.VarChar(255)
+  createdAt                 DateTime  @default(now()) @map("created_at")
+
+  // Relasi
+  productStock              ProductStock @relation(fields: [productStockId], references: [id])
+  admin                     User?     @relation("AdminChanges", fields: [adminId], references: [id])
+  order                     Order?    @relation(fields: [orderId], references: [id])
+
+  @@map("stock_journals")
+}
+
+//----------------------------------------------//
+// 4. DISCOUNTS & VOUCHERS
+//----------------------------------------------//
+
+/// Aturan diskon per toko
+model DiscountRule {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  storeId                   Int       @map("store_id")
+  /// Null jika berlaku ke semua
+  productId                 Int?      @map("product_id")
+  description               String    @db.VarChar(255)
+  /// Contoh: BOGO, DIRECT_PERCENTAGE, DIRECT_NOMINAL
+  type                      String    @db.VarChar(255)
+  /// Misal: 1 (utk BOGO), 15 (utk 15%), 10000 (utk 10rb)
+  value                     Int?
+  /// Minimal pembelian (jika ada)
+  minPurchase               Int       @default(0) @map("min_purchase")
+  /// Limitasi diskon (jika ada)
+  maxDiscountAmount         Int?      @map("max_discount_amount")
+  is_active                 Boolean   @default(true)
+  startDate                 DateTime? @map("start_date")
+  endDate                   DateTime? @map("end_date")
+
+  // Relasi
+  store                     Store     @relation(fields: [storeId], references: [id])
+  product                   Product?  @relation(fields: [productId], references: [id])
+
+  @@map("discount_rules")
+}
+
+/// Template voucher
+model Voucher {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  code                      String    @unique @db.VarChar(255)
+  description               String?   @db.Text()
+  type                      VoucherType
+  value                     Int
+  target                    VoucherTarget @default(TRANSACTION)
+  /// Jika voucher utk produk spesifik
+  targetProductId           Int?      @map("target_product_id")
+  minPurchaseAmount         Int       @default(0) @map("min_purchase_amount")
+  /// Limit potongan (utk persen)
+  maxDiscountAmount         Int?      @map("max_discount_amount")
+  expiresAt                 DateTime  @map("expires_at")
+  is_active                 Boolean   @default(true)
+
+  // Relasi
+  targetProduct             Product?  @relation("TargetProduct", fields: [targetProductId], references: [id])
+  userVouchers              UserVoucher[]
+
+  @@map("vouchers")
+}
+
+/// Voucher yg dimiliki user
+model UserVoucher {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  userId                    Int       @map("user_id")
+  voucherId                 Int       @map("voucher_id")
+  isUsed                    Boolean   @default(false) @map("is_used")
+
+  // Relasi
+  user                      User      @relation(fields: [userId], references: [id])
+  voucher                   Voucher   @relation(fields: [voucherId], references: [id])
+  order                     Order? // Relasi 1:1 ke Order (jika dipakai)
+
+  // Indexes
+  @@index([userId, voucherId])
+  @@map("user_vouchers")
+}
+
+//----------------------------------------------//
+// 5. CARTS & ORDERS
+//----------------------------------------------//
+
+/// Keranjang belanja user
+model Cart {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  userId                    Int       @unique @map("user_id")
+
+  // Relasi
+  user                      User      @relation(fields: [userId], references: [id])
+  cartItems                 CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  cartId                    Int       @map("cart_id")
+  productId                 Int       @map("product_id")
+  quantity                  Int       @default(1)
+
+  // Relasi
+  cart                      Cart      @relation(fields: [cartId], references: [id])
+  product                   Product   @relation(fields: [productId], references: [id])
+
+  // Indexes
+  @@unique([cartId, productId], map: "cart_product")
+  @@map("cart_items")
+}
+
+model Order {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  userId                    Int       @map("user_id")
+  /// Toko yg memproses pesanan
+  storeId                   Int       @map("store_id")
+  userAddressId             Int       @map("user_address_id")
+  /// JSON/text alamat saat checkout
+  addressSnapshot           String    @db.Text() @map("address_snapshot")
+  subtotal                  Int
+  shippingCost              Int       @default(0) @map("shipping_cost")
+  discountAmount            Int       @default(0) @map("discount_amount")
+  totalAmount               Int       @map("total_amount")
+  /// Voucher yg dipakai
+  userVoucherId             Int?      @unique @map("user_voucher_id") // Unique karena 1 voucher hanya bisa dipakai 1 order
+  status                    OrderStatus @default(PENDING_PAYMENT)
+  paymentDeadline           DateTime? @map("payment_deadline")
+
+  // Relasi
+  user                      User        @relation(fields: [userId], references: [id])
+  store                     Store       @relation(fields: [storeId], references: [id])
+  userAddress               UserAddress @relation(fields: [userAddressId], references: [id])
+  userVoucher               UserVoucher? @relation(fields: [userVoucherId], references: [id])
+  stockJournals             StockJournal[]
+  orderItems                OrderItem[]
+  payment                   Payment?
+
+  @@map("orders")
+}
+
+/// Item dalam sebuah pesanan
+model OrderItem {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  orderId                   Int       @map("order_id")
+  productId                 Int       @map("product_id")
+  /// Nama produk saat dibeli
+  productNameSnapshot       String    @map("product_name_snapshot")
+  /// Harga produk saat dibeli
+  priceAtPurchase           Int       @map("price_at_purchase")
+  quantity                  Int
+
+  // Relasi
+  order                     Order     @relation(fields: [orderId], references: [id])
+  product                   Product   @relation(fields: [productId], references: [id])
+
+  // Indexes
+  @@index([orderId, productId])
+  @@map("order_items")
+}
+
+/// Mencatat proses pembayaran
+model Payment {
+  // Field dari TablePartial pk_id dan timestamps
+  id                        Int       @id @default(autoincrement())
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  orderId                   Int             @unique @map("order_id")
+  /// Misal: MANUAL_TRANSFER, PAYMENT_GATEWAY
+  paymentMethod             PaymentMethod   @map("payment_method")
+  /// URL bukti bayar (jika manual)
+  paymentProofUrl           String?         @map("payment_proof_url") @db.Text()
+  status                    PaymentStatus @default(PENDING)
+  /// Admin yg konfirmasi
+  confirmedByAdminId        Int?      @map("confirmed_by_admin_id")
+
+  // Relasi
+  order                     Order     @relation(fields: [orderId], references: [id])
+  confirmedByAdmin          User?     @relation("PaymentConfirmationAdmin", fields: [confirmedByAdminId], references: [id])
+
+  @@map("payments")
 }

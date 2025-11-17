@@ -10,6 +10,7 @@ if (!jwtSecret) {
 export type JwtPayload = {
 	id: number;
 	role: UserRole;
+	storeId?: number;
 	iat?: number;
 	exp?: number;
 };

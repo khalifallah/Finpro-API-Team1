@@ -10,6 +10,8 @@ export const getCategories = async (req: Request , res: Response) => {
     }
 };
 
+// Super Admin Section only
+
 export const createCategory = async (req: Request, res: Response) => {
     try {
         const category = await categoryService.createCategory(req.body);
@@ -28,6 +30,7 @@ export const updateCategory = async (req: Request, res: Response) => {
     }
 };
 
+// with deletion confirmation
 export const deleteCategory = async (req: Request, res: Response) => {
     try {
         await categoryService.deleteCategory(parseInt(req.params.id));

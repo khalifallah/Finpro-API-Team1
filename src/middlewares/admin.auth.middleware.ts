@@ -9,11 +9,11 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
 
     try {
         const decoded = verifyJWT(token);
-        if (decoded.role! == UserRole.STORE_ADMIN || decoded.role! == UserRole.SUPER_ADMIN) {
+        if (decoded.role !== UserRole.STORE_ADMIN && decoded.role !== UserRole.SUPER_ADMIN) {
             return res.status(403).json({ error: "Forbidden: Admins only" });
         }
 
-        req.user = decoded; // attach user info to request
+        req.jwtPayload = decoded; // attach user info to request
         next();
     } catch (err) {
         throw new AppError("Invalid token", 401);
@@ -21,7 +21,7 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
 };
 
 export const superAdminAuth = (req: Request, res: Response, next: NextFunction) => {
-    if(req.user?.role !== UserRole.SUPER_ADMIN) {
+    if(req.jwtPayload?.role !== UserRole.SUPER_ADMIN) {
         return res.status(403).json({ error: "Forbidden: Super Admins only" });
     }
     next();

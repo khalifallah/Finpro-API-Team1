@@ -3,6 +3,7 @@ import { JwtPayload } from "../libs/jwt"; // Import dari jwt.ts
 
 declare module "express-serve-static-core" {
 	interface Request {
-		user?: TUser | JwtPayload; 
+		user?: TUser 
+		jwtPayload?: JwtPayload;
 	}
 }

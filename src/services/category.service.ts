@@ -8,10 +8,23 @@ export const getCategories = async () : Promise<CategoryResponse[]> => {
 };
 
 export const createCategory = async (data: CreateCategoryRequest) : Promise<CategoryResponse> => {
+    const existing = await prisma.category.findUnique({where: {name: data.name}});
+    if (existing) throw new Error("Category name must be unique");
+
     return await prisma.category.create({data});
 };
 
 export const updateCategory = async (id: number, data: UpdateCategoryRequest): Promise<CategoryResponse> => {
+    if (data.name) {
+        const existing = await prisma.category.findFirst({
+            where: {
+                name: data.name,
+                id: { not: id}
+            }
+        });
+        if (existing) throw new Error("Category name must be unique");
+    }
+    
     return await prisma.category.update({
         where: {id},
         data

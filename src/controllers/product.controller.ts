@@ -18,10 +18,22 @@ const parseProductQuery = (query: any) : ProductQuery => {
 export const getProducts = async (req: Request, res: Response) => {
     try {
         const query = parseProductQuery(req.query);
-        const result = await productService.getProducts(query, req.jwtPayload?.storeId)
+        const result = await productService.getProducts(query, query.storeId);
         res.json(result);
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch products" });
+    }
+};
+
+export const getProductById = async (req: Request, res: Response) => {
+    try {
+        const query = parseProductQuery(req.query);
+        const result = await productService.getProductById(parseInt(req.params.id), query.storeId);
+        if (!result) return res.status(404).json({ error: "Product not found" });
+        res.json(result);
+
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch product" });
     }
 };
 
@@ -30,9 +42,9 @@ export const getProducts = async (req: Request, res: Response) => {
 export const createProduct = async (req: Request, res: Response) => {
     try {
         const product = await productService.createProduct(req.body, req.files as Express.Multer.File[]);
-        res.json(product);
+        res.status(201).json(product);
     } catch (err: any) {
-        if (err.message.includes("unique")) res.status(400).json({ error: err.message});
+        if (err?.message?.includes("unique")) res.status(400).json({ error: err.message});
         else res.status(500).json({ error: "Failed to create product" });
     }
 };
@@ -42,7 +54,7 @@ export const updateProduct = async (req: Request, res: Response) => {
         const product = await productService.updateProduct(parseInt(req.params.id), req.body);
         res.json(product);
     } catch (err: any) {
-        if (err.message.includes("unique")) res.status(400).json({ error: err.message});
+        if (err?.message?.includes("unique")) res.status(400).json({ error: err.message});
         else res.status(500).json({ error: "Failed to update product" });
     }
 };

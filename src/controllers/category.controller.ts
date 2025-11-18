@@ -16,8 +16,9 @@ export const createCategory = async (req: Request, res: Response) => {
     try {
         const category = await categoryService.createCategory(req.body);
         res.status(201).json(category);
-    } catch (err) {
-        res.status(500).json({error: "Failed to create category"});
+    } catch (err: any) {
+        if (err?.message?.includes("unique")) res.status(400).json({ error: err.message});
+        else res.status(500).json({error: "Failed to create category"});
     }
 };
 
@@ -25,8 +26,9 @@ export const updateCategory = async (req: Request, res: Response) => {
     try {
         const category = await categoryService.updateCategory(parseInt(req.params.id), req.body);
         res.json(category);
-    } catch (err) {
-        res.status(400).json({error: "Failed to update category"});
+    } catch (err: any) {
+        if (err?.message?.includes("unique")) res.status(400).json({ error: err.message});
+        else res.status(500).json({error: "Failed to update category"});
     }
 };
 

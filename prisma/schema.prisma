@@ -79,6 +79,7 @@ model User {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   fullName                  String    @map("full_name")
   email                     String    @unique @db.VarChar(255)
@@ -116,6 +117,7 @@ model SocialAccount {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   userId                    Int       @map("user_id")
   provider                  String    @db.VarChar(255)
@@ -136,11 +138,14 @@ model UserAddress {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   userId                    Int       @map("user_id")
   /// Misal: Rumah, Kantor
   label                     String?
   fullAddress               String    @db.Text() @map("full_address")
+  recipientName             String    @map("recipient_name")
+  recipientPhone            String?   @map("recipient_phone") @db.VarChar(20)
   latitude                  Decimal   @db.Decimal(10, 8)
   longitude                 Decimal   @db.Decimal(11, 8)
   isMain                    Boolean   @default(false) @map("is_main")
@@ -157,6 +162,7 @@ model ReferralCode {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   /// User pemilik kode referral
   userId                    Int       @unique @map("user_id")
@@ -178,6 +184,7 @@ model Store {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   name                      String    @db.VarChar(255)
   address                   String?   @db.Text()
@@ -199,6 +206,7 @@ model Category {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   name                      String    @unique @db.VarChar(255)
 
@@ -214,6 +222,7 @@ model Product {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   categoryId                Int       @map("category_id")
   name                      String    @unique @db.VarChar(255)
@@ -239,6 +248,7 @@ model ProductImage {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   productId                 Int       @map("product_id")
   /// Validasi ext dan size di server
@@ -260,6 +270,7 @@ model ProductStock {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   productId                 Int       @map("product_id")
   storeId                   Int       @map("store_id")
@@ -290,6 +301,7 @@ model StockJournal {
   /// Misal: "order_created", "manual_update", "order_cancelled"
   reason                    String    @db.VarChar(255)
   createdAt                 DateTime  @default(now()) @map("created_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   // Relasi
   productStock              ProductStock @relation(fields: [productStockId], references: [id])
@@ -309,6 +321,7 @@ model DiscountRule {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   storeId                   Int       @map("store_id")
   /// Null jika berlaku ke semua
@@ -339,6 +352,7 @@ model Voucher {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   code                      String    @unique @db.VarChar(255)
   description               String?   @db.Text()
@@ -366,6 +380,7 @@ model UserVoucher {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   userId                    Int       @map("user_id")
   voucherId                 Int       @map("voucher_id")
@@ -391,6 +406,7 @@ model Cart {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   userId                    Int       @unique @map("user_id")
 
@@ -406,6 +422,7 @@ model CartItem {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   cartId                    Int       @map("cart_id")
   productId                 Int       @map("product_id")
@@ -425,6 +442,7 @@ model Order {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   userId                    Int       @map("user_id")
   /// Toko yg memproses pesanan
@@ -459,6 +477,7 @@ model OrderItem {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   orderId                   Int       @map("order_id")
   productId                 Int       @map("product_id")
@@ -483,6 +502,7 @@ model Payment {
   id                        Int       @id @default(autoincrement())
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
+  deletedAt                 DateTime? @map("deleted_at")
 
   orderId                   Int             @unique @map("order_id")
   /// Misal: MANUAL_TRANSFER, PAYMENT_GATEWAY

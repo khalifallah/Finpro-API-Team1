@@ -14,6 +14,7 @@ import corsOptions from "./middlewares/express/cors";
 import adminRoutes from "./routes/admin.route";
 import productRoutes from "./routes/product.route";
 import categoryRoutes from "./routes/category.route";
+import StockRoutes from "./routes/stock.route";
 
 export default class App {
   public app: Application;
@@ -46,6 +47,7 @@ export default class App {
     apiRouter.use("/admin" , adminRoutes);
     apiRouter.use("/products" , productRoutes);
     apiRouter.use("/categories" , categoryRoutes);
+    apiRouter.use("/stocks", StockRoutes);
   }
 
   private errorHandlers(): void {

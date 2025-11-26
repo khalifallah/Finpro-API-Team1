@@ -23,6 +23,7 @@ export interface StockJournalResponse {
     id: number;
     productStockId: number;
     adminId: number;
+    admin? : {id: number; fullName: string} | null;
     orderId?: number;
     quantityChange: number;
     reason: string;

@@ -14,6 +14,8 @@ import corsOptions from "./middlewares/express/cors";
 import adminRoutes from "./routes/admin.route";
 import productRoutes from "./routes/product.route";
 import categoryRoutes from "./routes/category.route";
+import authRoutes from "./routes/auth.route";
+import prisma from "./libs/prisma";
 
 export default class App {
   public app: Application;
@@ -43,9 +45,10 @@ export default class App {
     //* Define routes here
     apiRouter.use("/samples", sampleRoute.useRouter());
 
-    apiRouter.use("/admin" , adminRoutes);
-    apiRouter.use("/products" , productRoutes);
-    apiRouter.use("/categories" , categoryRoutes);
+    apiRouter.use("/admin", adminRoutes);
+    apiRouter.use("/products", productRoutes);
+    apiRouter.use("/categories", categoryRoutes);
+    apiRouter.use("/auth", authRoutes);
   }
 
   private errorHandlers(): void {
@@ -68,6 +71,30 @@ export default class App {
         });
       }
     );
+  }
+
+  // Database connection test
+  public async initialize(): Promise<{ success: boolean }> {
+    try {
+      console.log("Testing database connection...");
+
+      // Test database connection
+      await prisma.$queryRaw`SELECT 1`;
+      console.log("Database connection successful");
+
+      return { success: true };
+    } catch (error) {
+      console.error("Database connection failed:", error);
+      console.log(`
+DATABASE CONNECTION FAILED!
+
+Please check:
+1. Is PostgreSQL running?
+2. Are your DATABASE_URL credentials correct in .env?
+3. Does the database exist?
+      `);
+      throw error;
+    }
   }
 
   start(): void {

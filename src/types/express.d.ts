@@ -15,3 +15,8 @@ export interface IUserReqParam {
   role: string;
   photoUrl?: string;
 }
+
+declare module "streamifier" {
+  import { Readable } from "stream";
+  export function createReadStream(buffer: Buffer): Readable;
+}

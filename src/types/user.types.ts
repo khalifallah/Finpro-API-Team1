@@ -73,3 +73,30 @@ export interface UserResponse {
   storeId?: number | null;
   createdAt: Date;
 }
+
+export interface IUpdateProfileParam {
+  fullName?: string;
+  email?: string;
+  currentPassword?: string;
+  newPassword?: string;
+}
+
+export interface IUserProfileResponse {
+  id: number;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  photoUrl?: string;
+  storeId?: number;
+  emailVerifiedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  referralCode?: string;
+  cartItemCount?: number;
+  orderCount?: number;
+}
+
+export interface IEmailUpdateRequest {
+  email: string;
+  currentPassword: string;
+}

@@ -2,24 +2,25 @@ import { Router } from "express";
 import {
   RegisterController,
   ActivationController,
-  SetPasswordController, // Import new controller
+  SetPasswordController,
   LoginController,
-  getCurrentUserController,
-  UpdateProfileController,
   AuthPasswordController,
   VerifyResetTokenController,
   ResetPasswordLoggedInController,
   ResendVerificationController,
 } from "../controllers/auth.controller";
+import { ProfileController } from "../controllers/profile.controller";
 import { verifyToken, uniqueUserGuard } from "../middlewares/auth.middleware";
-import { uploadImages } from "../middlewares/upload.middleware";
+import { uploadProfilePhoto } from "../middlewares/upload.middleware";
 import {
   registerSchema,
-  setPasswordSchema, // Import new schema
+  setPasswordSchema,
   loginSchema,
   changePasswordSchema,
   resetPasswordSchema,
   updateProfileSchema,
+  emailUpdateSchema,
+  resendVerificationSchema,
 } from "../validations/auth.validation";
 import { validateRequest } from "../middlewares/validator.middleware";
 
@@ -38,7 +39,7 @@ router.get("/activate/:token", ActivationController);
 router.post(
   "/set-password",
   validateRequest(setPasswordSchema),
-  SetPasswordController // New route for setting password
+  SetPasswordController
 );
 
 // Login
@@ -56,20 +57,34 @@ router.post(
 );
 router.post("/verify-reset-token", VerifyResetTokenController);
 
-// Resend verification email
-router.post("/resend-verification", ResendVerificationController);
+// Resend verification email (public)
+router.post(
+  "/resend-verification",
+  validateRequest(resendVerificationSchema),
+  ResendVerificationController
+);
 
 // ==================== PROTECTED ROUTES ====================
 router.use(verifyToken);
 
-// User profile
-router.get("/me", getCurrentUserController);
+// Enhanced Profile Management
+router.get("/profile", ProfileController.getProfile);
 router.patch(
   "/profile",
-  uploadImages,
+  uploadProfilePhoto,
   validateRequest(updateProfileSchema),
-  UpdateProfileController
+  ProfileController.updateProfile
 );
+router.patch(
+  "/profile/email",
+  validateRequest(emailUpdateSchema),
+  ProfileController.updateEmail
+);
+router.post(
+  "/profile/request-verification",
+  ProfileController.requestVerification
+);
+router.delete("/profile/photo", ProfileController.deleteProfilePhoto);
 
 // Password management (for logged-in users)
 router.post(
@@ -82,5 +97,8 @@ router.post(
   validateRequest(resetPasswordSchema),
   ResetPasswordLoggedInController
 );
+
+// Keep backward compatibility
+router.get("/me", ProfileController.getProfile);
 
 export default router;

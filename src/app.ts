@@ -14,6 +14,7 @@ import corsOptions from "./middlewares/express/cors";
 import adminRoutes from "./routes/admin.route";
 import productRoutes from "./routes/product.route";
 import categoryRoutes from "./routes/category.route";
+import StockRoutes from "./routes/stock.route";
 import authRoutes from "./routes/auth.route";
 import prisma from "./libs/prisma";
 
@@ -49,6 +50,8 @@ export default class App {
     apiRouter.use("/products", productRoutes);
     apiRouter.use("/categories", categoryRoutes);
     apiRouter.use("/auth", authRoutes);
+    apiRouter.use("/stocks", StockRoutes);
+
   }
 
   private errorHandlers(): void {

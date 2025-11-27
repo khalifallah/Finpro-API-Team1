@@ -3,10 +3,9 @@ import {
   FindUserByEmail,
   RegisterService,
   LoginService,
-  UpdateUserService,
   UserPasswordService,
   ActivateUserService,
-  SetPasswordService, // Import new service
+  SetPasswordService,
   verifyResetTokenService,
   resetPasswordLoggedInService,
 } from "../services/auth.service";
@@ -138,34 +137,6 @@ export async function getCurrentUserController(
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
         },
-      })
-    );
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function UpdateProfileController(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    if (!req.user) {
-      throw new AppError("User is not authenticated", 401);
-    }
-
-    const { file } = req;
-    const { fullName, email } = req.body;
-
-    const updatedUser = await UpdateUserService(file, req.user.email, {
-      fullName,
-      email,
-    });
-
-    res.status(200).json(
-      responseBuilder(200, "Profile updated successfully", {
-        user: updatedUser,
       })
     );
   } catch (err) {

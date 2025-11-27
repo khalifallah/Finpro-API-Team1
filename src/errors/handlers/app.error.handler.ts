@@ -1,7 +1,7 @@
 import { NextFunction } from "express";
 import yup from "../../libs/yup";
 import AppError from "../app.error";
-import { Prisma } from "../../generated/prisma";
+import { Prisma } from "../../generated/prisma-client";
 
 export const appErrorHandler = (error: Error | any, next: NextFunction) => {
 	if (error instanceof Prisma.PrismaClientKnownRequestError) {

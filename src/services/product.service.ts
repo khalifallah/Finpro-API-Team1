@@ -25,7 +25,7 @@ export const getProducts = async (query: ProductQuery, userStoreId?: number): Pr
 
     const {search, categoryId, storeId = userStoreId, page =1, limit =10, sortBy = "createdAt", sortOrder = 'desc'} = query;
     const skip = (page -1) * limit;
-    const where: any = {};
+    const where: any = {deletedAt: null};
 
     if (search) where.name = {contains: search, mode: "insensitive"};
     if (categoryId) where.categoryId = categoryId;
@@ -48,7 +48,7 @@ export const getProducts = async (query: ProductQuery, userStoreId?: number): Pr
 
 export const getProductById = async (id: number, storeId?: number): Promise<ProductResponse | null> => {
     const product = await prisma.product.findUnique({
-        where: {id},
+        where: {id, deletedAt: null},
         include: {category: true, productImages: true},
     });
     if (!product) return null;
@@ -61,19 +61,15 @@ export const createProduct = async (
     data: CreateProductRequest, 
     images: Express.Multer.File[]): Promise<ProductResponse> => {
         try {
-            console.log("[Debug] createProduct - Input data:", {data, imagesCount: images?.length});
-            
+
             if (!images || images.length === 0) {
                 throw new Error("At least one product image is required.");
             }
 
-            console.log("[DEBUG] Processing images...");
             const imageUrls: string[] = await Promise.all(
                 images.map((img) => processImage(img))
             );
-            console.log("[DEBUG] Image URLs:", imageUrls);
-            
-            
+
             const product = await prisma.product.create({
                 data: {
                     name: data.name,
@@ -93,6 +89,8 @@ export const createProduct = async (
 };
 
 export const updateProduct = async (id: number, data: UpdateProductRequest): Promise<ProductResponse> => {
+    const existing = await prisma.product.findUnique({ where: { id } });
+    if (!existing || existing.deletedAt) throw new Error("Product not found or already deleted");
     const updateData : UpdateProductData = {};
 
     if (data.name) updateData.name = data.name;
@@ -110,38 +108,30 @@ export const updateProduct = async (id: number, data: UpdateProductRequest): Pro
 
 export const deleteProduct = async (id: number): Promise<void> => {
     try {
-        console.log("[DEBUG] deleteProduct service - ID:", id);
 
         const product = await prisma.product.findUnique({ 
             where: { id },
             include: { productImages: true, productStocks: true } // Cek relasi
         });
-        
-        console.log("[DEBUG] Product found:", product);
-        
+
         if (!product) {
             throw new Error(`Product with ID ${id} not found`);
         }
 
-        console.log("[DEBUG] Product has images:", product.productImages?.length || 0);
-        console.log("[DEBUG] Product has stocks:", product.productStocks?.length || 0);
-
         if (product.productImages && product.productImages.length > 0) {
             await prisma.productImage.deleteMany({where: {productId: id}});
-            console.log("[DEBUG] Product images deleted");
         }
 
         if (product.productStocks && product.productStocks.length > 0) {
             await prisma.productStock.deleteMany({ where: { productId: id } });
-            console.log("[DEBUG] Product stocks deleted");
         } 
 
-        await prisma.product.delete({ where: { id } });
-        console.log("[DEBUG] Product deleted successfully");
+        await prisma.product.update({ 
+            where: { id },
+            data: {deletedAt: new Date()} 
+        });
+        
     } catch (err: any) {
-        console.error("[ERROR] Service delete error - Message:", err.message);
-        console.error("[ERROR] Service delete error - Code:", err.code);
-        console.error("[ERROR] Full error:", err);
         throw err;
     }
 };

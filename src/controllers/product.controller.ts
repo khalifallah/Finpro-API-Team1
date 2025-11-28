@@ -78,18 +78,14 @@ export const updateProduct = async (req: Request, res: Response) => {
 // with deletion confirmation
 export const deleteProduct = async (req: Request, res: Response) => {
     try {
-        console.log("[DEBUG] deleteProduct controller - ID:", req.params.id);
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
             return res.status(400).json({ error: "Invalid product ID" });
         }
         const result = await productService.deleteProduct(id);
-        console.log("[DEBUG] Product deleted successfully");
         res.status(204).send();
 
     } catch (err: any) {
-        console.error("[ERROR] Delete product error:", err.message);
-        console.error("[ERROR] Full error details:", err);
         res.status(500).json({ 
             error: err.message || "Failed to delete product",
             code: err.code // to log prisma error

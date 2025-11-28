@@ -6,8 +6,6 @@ export const confirmDelete = (req: Request, res: Response, next: NextFunction) =
         acc[key.toLowerCase()] = req.query[key];
         return acc;
     }, {});
-
-    console.log("[DEBUG] Normalized query:", normalizedQuery);
     
     const confirm = String(normalizedQuery.confirm || "").toLowerCase().trim();
 
@@ -16,7 +14,5 @@ export const confirmDelete = (req: Request, res: Response, next: NextFunction) =
             error: "Confirmation required: add ?confirm=yes" 
         });
     }
-    
-    console.log("[DEBUG] Confirmation passed, proceeding...");
     next();
 };

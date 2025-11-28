@@ -17,9 +17,13 @@ export const createCategory = async (data: CreateCategoryRequest) : Promise<Cate
 };
 
 export const updateCategory = async (id: number, data: UpdateCategoryRequest): Promise<CategoryResponse> => {
+    const existing = await prisma.category.findUnique({ where: { id } });
+    if (!existing || existing.deletedAt) throw new Error("Category not found or already deleted");
+    
     if (data.name) {
         const existing = await prisma.category.findFirst({
             where: {
+                deletedAt: null,
                 name: data.name,
                 id: { not: id}
             }
@@ -35,8 +39,7 @@ export const updateCategory = async (id: number, data: UpdateCategoryRequest): P
 
 export const deleteCategory = async (id: number) : Promise<void> => {
     try {
-        console.log("[DEBUG] deleteCategory service - ID:", id);
-        
+
         const category = await prisma.category.findUnique({where: {id}});
         if (!category) {
             throw new Error(`Category with ID ${id} not found`);
@@ -46,9 +49,8 @@ export const deleteCategory = async (id: number) : Promise<void> => {
             where: {id},
             data: {deletedAt: new Date()}
          });
-         console.log("[DEBUG] Category soft deleted successfully");
+
     } catch (err: any) {
-        console.error("[DEBUG] Error in deleteCategory service:", err.message);
         throw err;
     }
 };

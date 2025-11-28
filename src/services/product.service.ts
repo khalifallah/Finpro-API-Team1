@@ -1,3 +1,4 @@
+import { string } from 'yup';
 import { PrismaClient } from '../generated/prisma-client';
 import { ProductQuery , CreateProductRequest , UpdateProductRequest, ProductResponse , DBProduct , UpdateProductData  } from '../types/product.types';
 import { processImage } from '../utils/file.util';
@@ -56,20 +57,39 @@ export const getProductById = async (id: number, storeId?: number): Promise<Prod
     return transformProductToResponse(product as DBProduct , stock?.quantity || 0);
 };
 
-export const createProduct = async (data: CreateProductRequest, images: Express.Multer.File[]): Promise<ProductResponse> => {
-    const imageUrls = await Promise.all(images.map(processImage));
+export const createProduct = async (
+    data: CreateProductRequest, 
+    images: Express.Multer.File[]): Promise<ProductResponse> => {
+        try {
+            console.log("[Debug] createProduct - Input data:", {data, imagesCount: images?.length});
+            
+            if (!images || images.length === 0) {
+                throw new Error("At least one product image is required.");
+            }
 
-    const product = await prisma.product.create({
-        data: {
-            name: data.name,
-            description: data.description,
-            defaultPrice: data.price,
-            categoryId: data.categoryId,
-            productImages: { create: imageUrls.map((url) => ({imageUrl: url})) } ,
-        } ,
-        include: {category: true, productImages: true},
-    });
-    return transformProductToResponse(product as DBProduct, 0);
+            console.log("[DEBUG] Processing images...");
+            const imageUrls: string[] = await Promise.all(
+                images.map((img) => processImage(img))
+            );
+            console.log("[DEBUG] Image URLs:", imageUrls);
+            
+            
+            const product = await prisma.product.create({
+                data: {
+                    name: data.name,
+                    description: data.description,
+                    defaultPrice: data.price,
+                    categoryId: data.categoryId,
+                    productImages: { create: imageUrls.map((url) => ({imageUrl: url})) } ,
+                } ,
+                include: {category: true, productImages: true},
+            });
+            return transformProductToResponse(product as DBProduct, 0);
+
+        } catch (err) {
+            console.error("Error creating product:", err);
+            throw err;
+        }
 };
 
 export const updateProduct = async (id: number, data: UpdateProductRequest): Promise<ProductResponse> => {
@@ -88,6 +108,40 @@ export const updateProduct = async (id: number, data: UpdateProductRequest): Pro
     return transformProductToResponse(product as DBProduct, 0);
 };
 
-export const deleteProduct = async (id: number) : Promise<void> => {
-    await prisma.product.delete({where: {id}});
+export const deleteProduct = async (id: number): Promise<void> => {
+    try {
+        console.log("[DEBUG] deleteProduct service - ID:", id);
+
+        const product = await prisma.product.findUnique({ 
+            where: { id },
+            include: { productImages: true, productStocks: true } // Cek relasi
+        });
+        
+        console.log("[DEBUG] Product found:", product);
+        
+        if (!product) {
+            throw new Error(`Product with ID ${id} not found`);
+        }
+
+        console.log("[DEBUG] Product has images:", product.productImages?.length || 0);
+        console.log("[DEBUG] Product has stocks:", product.productStocks?.length || 0);
+
+        if (product.productImages && product.productImages.length > 0) {
+            await prisma.productImage.deleteMany({where: {productId: id}});
+            console.log("[DEBUG] Product images deleted");
+        }
+
+        if (product.productStocks && product.productStocks.length > 0) {
+            await prisma.productStock.deleteMany({ where: { productId: id } });
+            console.log("[DEBUG] Product stocks deleted");
+        } 
+
+        await prisma.product.delete({ where: { id } });
+        console.log("[DEBUG] Product deleted successfully");
+    } catch (err: any) {
+        console.error("[ERROR] Service delete error - Message:", err.message);
+        console.error("[ERROR] Service delete error - Code:", err.code);
+        console.error("[ERROR] Full error:", err);
+        throw err;
+    }
 };

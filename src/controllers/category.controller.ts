@@ -35,9 +35,19 @@ export const updateCategory = async (req: Request, res: Response) => {
 // with deletion confirmation
 export const deleteCategory = async (req: Request, res: Response) => {
     try {
-        await categoryService.deleteCategory(parseInt(req.params.id));
+        console.log("[DEBUG] deleteCategory controller - ID:", req.params.id);
+
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: "Invalid category ID or must be a number" });
+        }
+
+        await categoryService.deleteCategory(id);
+        console.log("[DEBUG] Category deleted successfully");
+
         res.status(204).send();
-    } catch (err) {
+    } catch (err: any) {
+        console.error("[DEBUG] Error deleting category:", err.message);
         res.status(400).json({error: "Failed to delete category"});
     }
 };

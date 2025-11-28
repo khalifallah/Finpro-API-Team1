@@ -1,6 +1,8 @@
 import { Request , Response } from "express";
 import * as productService from "../services/product.service";
 import { ProductQuery } from "../types/product.types";
+import { CreateProductRequest } from "../types/product.types";
+
 
 // ? Helper function to parse query parameters into ProductQuery type // ?
 const parseProductQuery = (query: any) : ProductQuery => {
@@ -37,11 +39,25 @@ export const getProductById = async (req: Request, res: Response) => {
     }
 };
 
-// Super Admin Only Section
+// Super Admin Only Section: CRUD Operations //
+
+// Helper: Convert form-data string to correct types
+const parseCreateProductData = (body: any) : CreateProductRequest => ({
+    name: String(body.name),
+    description: String(body.description),
+    price: parseInt(String(body.price), 10),
+    categoryId: parseInt(String(body.categoryId), 10),
+    storeId: parseInt(String(body.storeId), 10),
+});
 
 export const createProduct = async (req: Request, res: Response) => {
     try {
-        const product = await productService.createProduct(req.body, req.files as Express.Multer.File[]);
+        const parsedData = parseCreateProductData(req.body);
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ error: "At least one product image is required" });
+        }
+
+        const product = await productService.createProduct(parsedData, req.files as Express.Multer.File[]);
         res.status(201).json(product);
     } catch (err: any) {
         if (err?.message?.includes("unique")) res.status(400).json({ error: err.message});
@@ -62,9 +78,21 @@ export const updateProduct = async (req: Request, res: Response) => {
 // with deletion confirmation
 export const deleteProduct = async (req: Request, res: Response) => {
     try {
-        const product = await productService.deleteProduct(parseInt(req.params.id));
+        console.log("[DEBUG] deleteProduct controller - ID:", req.params.id);
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: "Invalid product ID" });
+        }
+        const result = await productService.deleteProduct(id);
+        console.log("[DEBUG] Product deleted successfully");
         res.status(204).send();
-    } catch (err) {
-        res.status(500).json({ error: "Failed to delete product" });
+
+    } catch (err: any) {
+        console.error("[ERROR] Delete product error:", err.message);
+        console.error("[ERROR] Full error details:", err);
+        res.status(500).json({ 
+            error: err.message || "Failed to delete product",
+            code: err.code // to log prisma error
+        });
     }
 };

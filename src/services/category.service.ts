@@ -4,7 +4,9 @@ import { CreateCategoryRequest , UpdateCategoryRequest , CategoryResponse } from
 const prisma = new PrismaClient();
 
 export const getCategories = async () : Promise<CategoryResponse[]> => {
-    return await prisma.category.findMany();
+    return await prisma.category.findMany({
+        where: { deletedAt: null }
+    });
 };
 
 export const createCategory = async (data: CreateCategoryRequest) : Promise<CategoryResponse> => {
@@ -32,5 +34,21 @@ export const updateCategory = async (id: number, data: UpdateCategoryRequest): P
 };
 
 export const deleteCategory = async (id: number) : Promise<void> => {
-    await prisma.category.delete({where: {id}});
+    try {
+        console.log("[DEBUG] deleteCategory service - ID:", id);
+        
+        const category = await prisma.category.findUnique({where: {id}});
+        if (!category) {
+            throw new Error(`Category with ID ${id} not found`);
+        }
+         // soft delete: set deletetAt timestamp
+         await prisma.category.update({
+            where: {id},
+            data: {deletedAt: new Date()}
+         });
+         console.log("[DEBUG] Category soft deleted successfully");
+    } catch (err: any) {
+        console.error("[DEBUG] Error in deleteCategory service:", err.message);
+        throw err;
+    }
 };

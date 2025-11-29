@@ -1,10 +1,18 @@
 import { Request , Response } from "express";
 import * as categoryService from "../services/category.service";
 
+const parseCategoryQuery = (query: any) => ({
+    page: query.page ? parseInt(String(query.page), 10) : 1,
+    limit: query.limit ? parseInt(String(query.limit), 10) : 10,
+    sortBy: query.sortBy === "name" ? "name" : "createdAt",
+    sortOrder: query.sortOrder === "asc" ? "asc" : "desc"
+});
+
 export const getCategories = async (req: Request , res: Response) => {
     try {
-        const categories = await categoryService.getCategories();
-        res.json(categories);
+        const query = parseCategoryQuery(req.query);
+        const result = await categoryService.getCategories(query);
+        res.json(result);
     } catch (err) {
         res.status(500).json({error: "Failed to fetch categories"});
     }
@@ -51,12 +59,7 @@ export const deleteCategory = async (req: Request, res: Response) => {
 
 export const getDeletedCategories = async (req: Request, res: Response) => {
     try {
-        const query = {
-            page: req.query.page ? parseInt(String(req.query.page), 10) : 1,
-            limit: req.query.limit ? parseInt(String(req.query.limit), 10) : 10,
-            sortBy: req.query.sortBy === "name" ? "name" : "createdAt",
-            sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc"
-        };
+        const query = parseCategoryQuery(req.query);
         const result = await categoryService.getDeletedCategories(query);
         res.json(result);
     } catch (err) {

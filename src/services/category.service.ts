@@ -3,10 +3,17 @@ import { CreateCategoryRequest , UpdateCategoryRequest , CategoryResponse } from
 
 const prisma = new PrismaClient();
 
-export const getCategories = async () : Promise<CategoryResponse[]> => {
-    return await prisma.category.findMany({
-        where: { deletedAt: null }
+export const getCategories = async (query: { page?: number; limit?: number; sortBy?: string; sortOrder?: string }): Promise<{ categories: CategoryResponse[]; total: number; }> => {
+    const { page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc" } = query;
+    const skip = (page - 1) * limit;
+    const where = { deletedAt: null };
+
+    const categories = await prisma.category.findMany({
+        where,
+        skip, take: limit, orderBy: { [sortBy]: sortOrder }
     });
+    const total = await prisma.category.count({ where });
+    return { categories, total };
 };
 
 export const createCategory = async (data: CreateCategoryRequest) : Promise<CategoryResponse> => {

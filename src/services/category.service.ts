@@ -54,3 +54,27 @@ export const deleteCategory = async (id: number) : Promise<void> => {
         throw err;
     }
 };
+
+export const getDeletedCategories = async (query: { page?: number; limit?: number; sortBy?: string; sortOrder?: string })
+: Promise<{ categories: CategoryResponse[]; total: number; }> => {
+    const { page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc"} = query;
+    const skip = (page -1) * limit;
+    const where = {deletedAt: { not: null } };
+
+    const categories = await prisma.category.findMany({
+        where,
+        skip, take: limit, orderBy: { [sortBy]: sortOrder }
+    });
+    const total = await prisma.category.count({where});
+    return { categories, total };
+};
+
+export const restoreCategory = async (id: number): Promise<CategoryResponse> => {
+    const category = await prisma.category.findUnique({ where: {id} });
+    if (!category || !category.deletedAt) throw new Error("Category not found or not deleted");
+
+    return await prisma.category.update({
+        where: {id},
+        data: {deletedAt: null}
+    });
+};

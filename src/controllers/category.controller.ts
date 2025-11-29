@@ -42,10 +42,33 @@ export const deleteCategory = async (req: Request, res: Response) => {
         }
         
         await categoryService.deleteCategory(id);
-        console.log("[DEBUG] Category deleted successfully");
 
         res.status(204).send();
     } catch (err: any) {
         res.status(400).json({error: "Failed to delete category"});
+    }
+};
+
+export const getDeletedCategories = async (req: Request, res: Response) => {
+    try {
+        const query = {
+            page: req.query.page ? parseInt(String(req.query.page), 10) : 1,
+            limit: req.query.limit ? parseInt(String(req.query.limit), 10) : 10,
+            sortBy: req.query.sortBy === "name" ? "name" : "createdAt",
+            sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc"
+        };
+        const result = await categoryService.getDeletedCategories(query);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({error: "Failed to fetch deleted categories"});
+    }
+};
+
+export const restoreCategory = async (req: Request, res: Response) => {
+    try {
+        const category = await categoryService.restoreCategory(parseInt(req.params.id));
+        res.json(category);
+    } catch (err: any) {
+        res.status(400).json({error: err.message || "Failed to restore category"});
     }
 };

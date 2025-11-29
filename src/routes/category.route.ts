@@ -12,4 +12,7 @@ router.post("/" , superAdminAuth, categoryController.createCategory);
 router.put("/:id" , superAdminAuth, categoryController.updateCategory);
 router.delete("/:id" , superAdminAuth, confirmDelete, categoryController.deleteCategory);
 
+router.get("/deleted", superAdminAuth, categoryController.getDeletedCategories);
+router.put("/:id/restore", superAdminAuth, categoryController.restoreCategory);
+
 export default router;

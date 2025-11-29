@@ -1,4 +1,3 @@
-import { string } from 'yup';
 import { PrismaClient } from '../generated/prisma-client';
 import { ProductQuery , CreateProductRequest , UpdateProductRequest, ProductResponse , DBProduct , UpdateProductData  } from '../types/product.types';
 import { processImage } from '../utils/file.util';
@@ -61,6 +60,17 @@ export const createProduct = async (
     data: CreateProductRequest, 
     images: Express.Multer.File[]): Promise<ProductResponse> => {
         try {
+            // Add check for soft-deleted product with same name (or name + category) to prevent duplication
+            const existingDeleted = await prisma.product.findFirst({
+                where: {
+                    name: data.name,
+                    categoryId: data.categoryId,
+                    deletedAt: { not: null }
+                }
+            });
+            if (existingDeleted) {
+                throw new Error("A deleted product with the same name and category exists. Restore it instead.");
+            }
 
             if (!images || images.length === 0) {
                 throw new Error("At least one product image is required.");
@@ -132,6 +142,44 @@ export const deleteProduct = async (id: number): Promise<void> => {
         });
         
     } catch (err: any) {
+        throw err;
+    }
+};
+
+// Restore soft-deleted product
+export const restoreProduct = async (id: number): Promise<ProductResponse> => {
+    const product = await prisma.product.findUnique({
+        where: { id },
+        include: { category: true, productImages: true }
+    });
+    if (!product || !product.deletedAt) throw new Error("Product not found or not deleted");
+
+    const restored = await prisma.product.update({
+        where: { id },
+        data: { deletedAt: null },
+        include: { category: true, productImages: true }
+    });
+    return transformProductToResponse(restored as DBProduct, 0);
+};
+
+// Get soft-deleted products with pagination/filtering
+export const getDeletedProducts = async (query: ProductQuery): Promise<{ products: ProductResponse[]; total: number; }> => {
+    try {
+        const { search, categoryId, page = 1, limit = 10, sortBy = "createdAt", sortOrder = 'desc' } = query;
+        const skip = (page - 1) * limit;
+        const where: any = { deletedAt: { not: null } };
+        
+        if (search) where.name = { contains: search, mode: "insensitive" };
+        if (categoryId) where.categoryId = categoryId;
+        
+        const products = await prisma.product.findMany({
+            where,
+            include: { category: true, productImages: true },
+            skip, take: limit, orderBy: { [sortBy]: sortOrder }
+        });
+        const total = await prisma.product.count({ where });
+        return { products: products.map(p => transformProductToResponse(p as DBProduct, 0)), total };
+    } catch (err) {
         throw err;
     }
 };

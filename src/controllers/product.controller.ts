@@ -92,3 +92,22 @@ export const deleteProduct = async (req: Request, res: Response) => {
         });
     }
 };
+
+export const restoreProduct = async (req: Request, res: Response) => {
+    try {
+        const product = await productService.restoreProduct(parseInt(req.params.id));
+        res.json(product);
+    } catch (err: any) {
+        res.status(400).json({ error: err.message || "Failed to restore product" });
+    }
+};
+
+export const getDeletedProducts = async (req: Request, res: Response) => {
+    try {
+        const query = parseProductQuery(req.query);
+        const result = await productService.getDeletedProducts(query);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch deleted products" });
+    }
+};

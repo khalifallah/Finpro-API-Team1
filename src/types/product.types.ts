@@ -13,7 +13,7 @@ export interface CreateProductRequest {
     description: string;
     price: number; // must map to "default price" in db schema Product table
     categoryId: number;
-    storeId: number;
+    storeId?: number;
 }
 
 export interface UpdateProductRequest { 

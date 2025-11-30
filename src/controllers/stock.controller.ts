@@ -27,8 +27,11 @@ export const getStocks = async (req: Request, res: Response) => {
 export const getStockById = async (req: Request, res: Response) => {
     try {
         const result = await stockService.getStockById(parseInt(req.params.id))
-        if (!result) return res.status(404).json({ error: "Stock not found" });
+        if (!result) {
+            return res.status(404).json({ error: "Stock not found" }); 
+        }
         res.json(result);
+
     } catch (err) {
         res.status(500).json({error: "Failed to fetch stock" });
     }
@@ -48,20 +51,62 @@ export const updateStock = async (req: Request, res: Response) => {
     try {
         await updateStockSchema.validate(req.body);
         const adminId = req.jwtPayload!.id;
-        const reason = req.body.reason || "Manual Stock Update"
+        const reason = req.body.reason || "Manual Stock Update";
         const stock = await stockService.updateStock(parseInt(req.params.id), req.body, adminId, reason);
         res.json(stock);
     } catch (err: any) {
+        
+        // Return 410 Gone jika stock sudah dihapus
+        if (err.message.includes("deleted")) {
+            return res.status(410).json({ error: err.message });
+        }
         res.status(400).json({ error: err.message || "Failed to update stock" });
     }
 };
 
 export const deleteStock = async (req: Request, res: Response) => {
     try {
-        await stockService.deleteStock(parseInt(req.params.id));
+        const stockId = parseInt(req.params.id);
+
+        if (isNaN(stockId)) {
+            return res.status(400).json({ error: "Invalid stock ID" });
+        }
+
+        const stock = await stockService.getStockById(stockId);
+        if (!stock) {
+            return res.status(404).json({ error: "Stock not found" });
+        }
+
+        const userStoreId = req.jwtPayload?.storeId;
+        if (userStoreId && stock.storeId !== userStoreId) {
+            return res.status(403).json({ error: "Unauthorized: Cannot delete stock from another store" });
+        }
+
+        const adminId = req.jwtPayload!.id;
+        await stockService.deleteStock(stockId, adminId); // Pass adminId
+
         res.status(204).send();
-    } catch (err) {
-        res.status(500).json({ error: "Failed to delete stock" });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message || "Failed to delete stock" });
+    }
+};
+
+export const restoreStock = async (req: Request, res: Response) => {
+    try {
+        const stockId = parseInt(req.params.id);
+
+        if (isNaN(stockId)) {
+            return res.status(400).json({ error: "Invalid stock ID" });
+        }
+
+        const adminId = req.jwtPayload!.id;
+        const stock = await stockService.restoreStock(stockId, adminId);
+        res.json(stock);
+    } catch (err: any) {
+        if (err.message.includes("not deleted")) {
+            return res.status(400).json({ error: err.message });
+        }
+        res.status(500).json({ error: err.message || "Failed to restore stock" });
     }
 };
 

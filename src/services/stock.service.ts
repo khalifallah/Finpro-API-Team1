@@ -19,7 +19,7 @@ const transformStockToResponse = (stock: any) : StockResponse => ({
 export const getStocks = async (query: StockQuery , userStoreId?: number): Promise<{stocks: StockResponse[]; total: number}> => {
     const {storeId = userStoreId, productId, page = 1, limit = 10, sortBy = "createdAt" , sortOrder = "desc" } = query;
     const skip = (page -1) * limit;
-    const where : any = {};
+    const where : any = {deletedAt: null};
 
     if (storeId) where.storeId = storeId;
     if (productId) where.productId = productId;
@@ -31,7 +31,7 @@ export const getStocks = async (query: StockQuery , userStoreId?: number): Promi
     });
     const total = await prisma.productStock.count({where});
     return {stocks: stocks.map(transformStockToResponse), total};
-}
+};
 
 // GET Stock by ID
 export const getStockById = async (id: number): Promise<StockResponse | null> => {
@@ -39,7 +39,11 @@ export const getStockById = async (id: number): Promise<StockResponse | null> =>
         where: {id},
         include: {product: true, store: true},
     });
-    return stock ? transformStockToResponse(stock) : null;
+    
+    if (!stock || stock.deletedAt !== null) {
+        return null;
+    }
+    return transformStockToResponse(stock);
 };
 
 // Create new stock entry (super admin only, as it sets store)
@@ -53,25 +57,84 @@ export const createStock = async (data: CreateStockRequest): Promise<StockRespon
 
 // Update stock: Create journal entry and update quantity
 export const updateStock = async (id: number, data: UpdateStockRequest, adminId: number, reason: string): Promise<StockResponse> => {
-    const existingStock = await prisma.productStock.findUnique({where: {id}});
+    const existingStock = await prisma.productStock.findUnique({ where: { id } });
+    
     if (!existingStock) throw new Error("Stock not found");
+    
+    if (existingStock.deletedAt !== null) {
+        throw new Error("Cannot update deleted stock");
+    }
 
     const quantityChange = data.quantity - existingStock.quantity;
     await prisma.stockJournal.create({
-        data: {productStockId: id, adminId, quantityChange, reason}
+        data: { productStockId: id, adminId, quantityChange, reason }
     });
 
     const updatedStock = await prisma.productStock.update({
-        where: {id},
-        data: {quantity: data.quantity},
-        include: {product: true, store: true}
+        where: { id },
+        data: { quantity: data.quantity },
+        include: { product: true, store: true }
     });
     return transformStockToResponse(updatedStock);
 };
 
 // Delete Stock (with confirmation)
-export const deleteStock = async (id: number): Promise<void> => {
-    await prisma.productStock.delete({where: {id}});
+export const deleteStock = async (id: number, adminId: number): Promise<void> => {
+    try {
+        const existingStock = await prisma.productStock.findUnique({ where: { id } });
+        if (!existingStock) throw new Error("Stock not found");
+
+        // Log deletion as journal entry
+        await prisma.stockJournal.create({
+            data: {
+                productStockId: id,
+                adminId,
+                quantityChange: 0,
+                reason: "Stock Deleted"
+            }
+        });
+
+        // Soft delete
+        await prisma.productStock.update({
+            where: { id },
+            data: { deletedAt: new Date() }
+        });
+    } catch (err: any) {
+        throw err;
+    }
+};
+
+
+// Restore deleted stock
+export const restoreStock = async (id: number, adminId: number): Promise<StockResponse> => {
+    try {
+        const existingStock = await prisma.productStock.findUnique({ where: { id } });
+        if (!existingStock) throw new Error("Stock not found");
+
+        if (existingStock.deletedAt === null) {
+            throw new Error("Stock is not deleted");
+        }
+
+        // Log restoration as journal entry
+        await prisma.stockJournal.create({
+            data: {
+                productStockId: id,
+                adminId,
+                quantityChange: 0,
+                reason: "Stock Restored"
+            }
+        });
+
+        // Restore by setting deletedAt to null
+        const restoredStock = await prisma.productStock.update({
+            where: { id },
+            data: { deletedAt: null },
+            include: { product: true, store: true }
+        });
+        return transformStockToResponse(restoredStock);
+    } catch (err: any) {
+        throw err;
+    }
 };
 
 // GET Journals for a stock

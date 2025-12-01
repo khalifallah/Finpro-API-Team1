@@ -25,4 +25,6 @@ export const {
   NODEMAILER_USER,
   NODEMAILER_PASS,
   FE_URL,
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
 } = process.env;

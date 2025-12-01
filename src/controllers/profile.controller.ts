@@ -5,6 +5,28 @@ import { responseBuilder } from "../utils/response.builder";
 
 const profileService = new ProfileService();
 
+// Helper function to get user ID from request
+const getUserId = (req: Request): number => {
+  if (!req.user) {
+    throw new AppError("User not authenticated", 401);
+  }
+
+  // Handle different JWT token structures
+  const userId = req.user.id;
+
+  if (!userId) {
+    console.error("User object structure:", req.user);
+    throw new AppError("User ID not found in token", 400);
+  }
+
+  if (isNaN(Number(userId))) {
+    console.error("Invalid user ID:", userId);
+    throw new AppError("Invalid user ID format", 400);
+  }
+
+  return Number(userId);
+};
+
 export class ProfileController {
   // Get user profile
   static async getProfile(
@@ -13,11 +35,8 @@ export class ProfileController {
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new AppError("User not authenticated", 401);
-      }
-
-      const profile = await profileService.getUserProfile(req.user.id);
+      const userId = getUserId(req);
+      const profile = await profileService.getUserProfile(userId);
 
       res.status(200).json(
         responseBuilder(200, "Profile retrieved successfully", {
@@ -36,21 +55,18 @@ export class ProfileController {
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new AppError("User not authenticated", 401);
-      }
-
+      const userId = getUserId(req);
       const { fullName, email, currentPassword, newPassword } = req.body;
       const file = req.file;
 
       const updatedProfile = await profileService.updateUserProfile(
-        req.user.id,
+        userId,
         { fullName, email, currentPassword, newPassword },
         file
       );
 
       let message = "Profile updated successfully";
-      if (email && email !== req.user.email) {
+      if (email && email !== req.user?.email) {
         message += ". Please check your email for verification.";
       }
 
@@ -71,13 +87,10 @@ export class ProfileController {
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new AppError("User not authenticated", 401);
-      }
-
+      const userId = getUserId(req);
       const { email, currentPassword } = req.body;
 
-      const updatedProfile = await profileService.updateEmail(req.user.id, {
+      const updatedProfile = await profileService.updateEmail(userId, {
         email,
         currentPassword,
       });
@@ -103,11 +116,8 @@ export class ProfileController {
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new AppError("User not authenticated", 401);
-      }
-
-      await profileService.requestEmailVerification(req.user.id);
+      const userId = getUserId(req);
+      await profileService.requestEmailVerification(userId);
 
       res
         .status(200)
@@ -124,13 +134,10 @@ export class ProfileController {
     next: NextFunction
   ): Promise<void> {
     try {
-      if (!req.user) {
-        throw new AppError("User not authenticated", 401);
-      }
-
+      const userId = getUserId(req);
       const profileService = new ProfileService();
       const updatedProfile = await profileService.updateUserProfile(
-        req.user.id,
+        userId,
         {},
         undefined
       );

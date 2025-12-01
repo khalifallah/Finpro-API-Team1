@@ -1,16 +1,21 @@
 import { Router } from "express";
 import {
-  RegisterController,
-  ActivationController,
-  SetPasswordController,
-  LoginController,
+  AuthRegistrationController,
+  AuthSessionController,
   AuthPasswordController,
-  VerifyResetTokenController,
-  ResetPasswordLoggedInController,
-  ResendVerificationController,
-} from "../controllers/auth.controller";
+} from "../controllers/auth/auth.controller";
 import { ProfileController } from "../controllers/profile.controller";
-import { verifyToken, uniqueUserGuard } from "../middlewares/auth.middleware";
+import { AddressController } from "../controllers/address.controller";
+import {
+  verifyToken,
+  uniqueUserGuard,
+  requireVerifiedUser,
+  requirePermission,
+  canAddToCart,
+  canPlaceOrders,
+  requireAuthAndVerification,
+  attachAuthStatus,
+} from "../middlewares/auth.middleware";
 import { uploadProfilePhoto } from "../middlewares/upload.middleware";
 import {
   registerSchema,
@@ -21,10 +26,20 @@ import {
   updateProfileSchema,
   emailUpdateSchema,
   resendVerificationSchema,
+  googleAuthSchema,
+  setSocialPasswordSchema,
 } from "../validations/auth.validation";
+import {
+  createAddressSchema,
+  updateAddressSchema,
+} from "../validations/address.validation";
 import { validateRequest } from "../middlewares/validator.middleware";
 
 const router = Router();
+
+// Create controller instances
+// AuthRegistrationController and AuthPasswordController expose static handlers; instantiate only controllers with instance methods
+const authSessionController = new AuthSessionController();
 
 // ==================== PUBLIC ROUTES ====================
 
@@ -33,72 +48,176 @@ router.post(
   "/register",
   validateRequest(registerSchema),
   uniqueUserGuard,
-  RegisterController
+  AuthRegistrationController.register.bind(AuthRegistrationController)
 );
-router.get("/activate/:token", ActivationController);
+
+router.get(
+  "/activate/:token",
+  AuthRegistrationController.activate.bind(AuthRegistrationController)
+);
+
 router.post(
   "/set-password",
   validateRequest(setPasswordSchema),
-  SetPasswordController
+  AuthRegistrationController.setPassword.bind(AuthRegistrationController)
 );
 
 // Login
-router.post("/login", validateRequest(loginSchema), LoginController);
+router.post(
+  "/login",
+  validateRequest(loginSchema),
+  AuthSessionController.login.bind(AuthSessionController)
+);
 
 // Password reset (public)
 router.post(
   "/request-password-reset",
-  AuthPasswordController.requestPasswordReset
+  AuthPasswordController.requestPasswordReset.bind(AuthPasswordController)
 );
+
 router.post(
   "/reset-password",
   validateRequest(resetPasswordSchema),
-  AuthPasswordController.resetPassword
+  AuthPasswordController.resetPassword.bind(AuthPasswordController)
 );
-router.post("/verify-reset-token", VerifyResetTokenController);
+
+router.post(
+  "/verify-reset-token",
+  AuthPasswordController.verifyResetToken.bind(AuthPasswordController)
+);
 
 // Resend verification email (public)
 router.post(
   "/resend-verification",
   validateRequest(resendVerificationSchema),
-  ResendVerificationController
+  AuthRegistrationController.resendVerification.bind(AuthRegistrationController)
+);
+
+// Google OAuth routes
+router.post(
+  "/google",
+  validateRequest(googleAuthSchema),
+  AuthSessionController.googleAuth.bind(AuthSessionController)
 );
 
 // ==================== PROTECTED ROUTES ====================
 router.use(verifyToken);
+router.use(attachAuthStatus);
 
-// Enhanced Profile Management
-router.get("/profile", ProfileController.getProfile);
+// Auth status and management
+router.get(
+  "/status",
+  AuthSessionController.getAuthStatus.bind(AuthSessionController)
+);
+
+router.post(
+  "/unlink-google",
+  AuthSessionController.unlinkGoogleAccount.bind(AuthSessionController)
+);
+
+router.post(
+  "/set-social-password",
+  validateRequest(setSocialPasswordSchema),
+  AuthSessionController.setPasswordForSocialUser.bind(AuthSessionController)
+);
+
+// Enhanced Profile Management with proper authorization
+router.get(
+  "/profile",
+  requireVerifiedUser,
+  ProfileController.getProfile.bind(ProfileController)
+);
+
 router.patch(
   "/profile",
   uploadProfilePhoto,
   validateRequest(updateProfileSchema),
-  ProfileController.updateProfile
+  ProfileController.updateProfile.bind(ProfileController)
 );
+
 router.patch(
   "/profile/email",
+  requireVerifiedUser,
   validateRequest(emailUpdateSchema),
-  ProfileController.updateEmail
+  ProfileController.updateEmail.bind(ProfileController)
 );
+
 router.post(
   "/profile/request-verification",
-  ProfileController.requestVerification
+  ProfileController.requestVerification.bind(ProfileController)
 );
-router.delete("/profile/photo", ProfileController.deleteProfilePhoto);
 
+router.delete(
+  "/profile/photo",
+  requireVerifiedUser,
+  ProfileController.deleteProfilePhoto.bind(ProfileController)
+);
+
+// ==================== ADDRESS MANAGEMENT ROUTES ====================
+// Get all user addresses
+router.get(
+  "/profile/addresses",
+  requireVerifiedUser,
+  AddressController.getUserAddresses.bind(AddressController)
+);
+
+// Get specific address
+router.get(
+  "/profile/addresses/:addressId",
+  requireVerifiedUser,
+  AddressController.getAddressById.bind(AddressController)
+);
+
+// Create new address
+router.post(
+  "/profile/address",
+  validateRequest(createAddressSchema),
+  requireVerifiedUser,
+  AddressController.createAddress.bind(AddressController)
+);
+
+// Update address
+router.patch(
+  "/profile/addresses/:addressId",
+  validateRequest(updateAddressSchema),
+  requireVerifiedUser,
+  AddressController.updateAddress.bind(AddressController)
+);
+
+// Delete address
+router.delete(
+  "/profile/addresses/:addressId",
+  requireVerifiedUser,
+  AddressController.deleteAddress.bind(AddressController)
+);
+
+// Set address as main
+router.patch(
+  "/profile/addresses/:addressId/set-main",
+  requireVerifiedUser,
+  AddressController.setMainAddress.bind(AddressController)
+);
+
+// Password management (for logged-in users)
 // Password management (for logged-in users)
 router.post(
   "/change-password",
+  requireVerifiedUser,
   validateRequest(changePasswordSchema),
-  AuthPasswordController.changePassword
+  AuthPasswordController.changePassword.bind(AuthPasswordController)
 );
 router.post(
   "/reset-password-loggedin",
+  requireVerifiedUser,
   validateRequest(resetPasswordSchema),
-  ResetPasswordLoggedInController
+  AuthPasswordController.resetPasswordLoggedIn.bind(AuthPasswordController)
 );
 
 // Keep backward compatibility
-router.get("/me", ProfileController.getProfile);
+router.get(
+  "/me",
+  requireVerifiedUser,
+  AuthSessionController.getCurrentUser.bind(AuthSessionController)
+);
 
 export default router;

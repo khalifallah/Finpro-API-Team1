@@ -63,3 +63,14 @@ export const emailUpdateSchema = yup.object().shape({
 export const resendVerificationSchema = yup.object().shape({
   email: yup.string().email().required("Email is required"),
 });
+
+export const googleAuthSchema = yup.object().shape({
+  googleId: yup.string().required("Google ID is required"),
+  email: yup.string().email().required("Email is required"),
+  name: yup.string().required("Name is required"),
+  picture: yup.string().optional(),
+});
+
+export const setSocialPasswordSchema = yup.object().shape({
+  password: yup.string().min(8).required("Password is required"),
+});

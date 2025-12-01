@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background: #1a365d; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+      .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+      .reward-card { background: white; border: 2px solid #22543d; border-radius: 10px; padding: 20px; margin: 20px 0; }
+      .congrats { color: #22543d; font-size: 24px; font-weight: bold; text-align: center; margin: 20px 0; }
+      .highlight { background-color: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #22543d; }
+      .reward-details { background: #fff3cd; padding: 15px; border-radius: 8px; margin: 15px 0; }
+      .voucher-code { background: #22543d; color: white; padding: 15px; border-radius: 8px; text-align: center; font-size: 20px; font-weight: bold; letter-spacing: 2px; margin: 15px 0; }
+      .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        {{{logoHtml}}}
+        <h1 style="color: white;">🎉 Referral Rewards! 🎉</h1>
+        <p style="color: white; font-size: 18px; margin: 0;">You've Earned Special Discounts</p>
+      </div>
+      
+      <div class="content">
+        <div class="congrats">Congratulations, {{referringUserName}}!</div>
+        
+        <p>You've successfully referred <strong>{{newUserEmail}}</strong> to our Grocery App family!</p>
+        
+        <div class="reward-card">
+          <h3 style="color: #22543d; margin-top: 0; text-align: center;">Your Referral Reward</h3>
+          
+          <div class="voucher-code">
+            {{referralVoucherCode}}
+          </div>
+          
+          <div class="highlight">
+            <h4 style="margin: 0; color: #22543d; text-align: center;">{{rewardDescription}}</h4>
+          </div>
+          
+          <div class="reward-details">
+            <p><strong>🎁 Reward Details:</strong></p>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+              <li><strong>Discount:</strong> 15% off your next purchase</li>
+              <li><strong>Minimum Purchase:</strong> Rp 100,000</li>
+              <li><strong>Maximum Discount:</strong> Rp 50,000</li>
+              <li><strong>Validity:</strong> 30 days from now</li>
+              <li><strong>Usage:</strong> Automatically applied at checkout</li>
+            </ul>
+          </div>
+        </div>
+        
+        <p><strong>📋 How to use your reward:</strong></p>
+        <ol style="margin: 15px 0; padding-left: 20px;">
+          <li>Shop for groceries in our app</li>
+          <li>Add items worth at least Rp 100,000 to your cart</li>
+          <li>Proceed to checkout</li>
+          <li>Your 15% discount will be automatically applied!</li>
+        </ol>
+        
+        <p>Keep sharing your unique referral code to help friends discover our app and earn more rewards!</p>
+        
+        <p style="text-align: center;">
+          <strong>Thank you for being a valued member of our grocery community! 🛒</strong>
+        </p>
+      </div>
+      
+      <div class="footer">
+        <p>Best regards,<br><strong>The Grocery App Team</strong></p>
+        <p>Need help? Contact us at support@groceryapp.com</p>
+      </div>
+    </div>
+  </body>
+</html>

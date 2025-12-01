@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background: #1a365d; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+      .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+      .welcome-card { background: white; border: 2px solid #2d3748; border-radius: 10px; padding: 20px; margin: 20px 0; }
+      .welcome-title { color: #2E7D32; font-size: 24px; font-weight: bold; text-align: center; margin: 20px 0; }
+      .highlight { background-color: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #2E7D32; }
+      .reward-details { background: #fff3cd; padding: 15px; border-radius: 8px; margin: 15px 0; }
+      .voucher-code { background: #2E7D32; color: white; padding: 15px; border-radius: 8px; text-align: center; font-size: 20px; font-weight: bold; letter-spacing: 2px; margin: 15px 0; }
+      .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+      .steps { background: #e7f3ff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        {{{logoHtml}}}
+        <h1 style="color: white;">🎉 Welcome to Grocery App! 🎉</h1>
+        <p style="color: white; font-size: 18px; margin: 0;">Your Welcome Gift is Here</p>
+      </div>
+      
+      <div class="content">
+        <div class="welcome-title">Welcome aboard, {{newUserName}}!</div>
+        
+        <p>Thank you for joining Grocery App! We're excited to have you as part of our community.</p>
+        
+        <div class="welcome-card">
+          <h3 style="color: #2E7D32; margin-top: 0; text-align: center;">Your Welcome Gift</h3>
+          
+          <div class="voucher-code">
+            {{welcomeVoucherCode}}
+          </div>
+          
+          <div class="highlight">
+            <h4 style="margin: 0; color: #2E7D32; text-align: center;">{{rewardDescription}}</h4>
+          </div>
+          
+          <div class="reward-details">
+            <p><strong>🎁 Reward Details:</strong></p>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+              <li><strong>Discount:</strong> 10% off your first purchase</li>
+              <li><strong>Minimum Purchase:</strong> Rp 50,000</li>
+              <li><strong>Maximum Discount:</strong> Rp 25,000</li>
+              <li><strong>Validity:</strong> 30 days from now</li>
+              <li><strong>Usage:</strong> Automatically applied at checkout</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="steps">
+          <p><strong>🚀 Get started with your shopping:</strong></p>
+          <ol style="margin: 10px 0; padding-left: 20px;">
+            <li>Verify your email address to activate your account</li>
+            <li>Browse our wide selection of groceries</li>
+            <li>Add items worth at least Rp 50,000 to your cart</li>
+            <li>Proceed to checkout - your discount will be automatically applied!</li>
+          </ol>
+        </div>
+        
+        <p><strong>💡 Pro Tip:</strong> Share your referral code with friends and earn additional 15% discounts when they join!</p>
+        
+        <p style="text-align: center;">
+          <strong>Happy shopping! We can't wait to serve you. 🛒</strong>
+        </p>
+      </div>
+      
+      <div class="footer">
+        <p>Best regards,<br><strong>The Grocery App Team</strong></p>
+        <p>Need help? Contact us at support@groceryapp.com</p>
+      </div>
+    </div>
+  </body>
+</html>

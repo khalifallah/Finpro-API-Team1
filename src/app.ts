@@ -16,6 +16,7 @@ import productRoutes from "./routes/product.route";
 import categoryRoutes from "./routes/category.route";
 import StockRoutes from "./routes/stock.route";
 import authRoutes from "./routes/auth.route";
+import orderRoutes from "./routes/order.route";
 import prisma from "./libs/prisma";
 
 export default class App {
@@ -36,8 +37,10 @@ export default class App {
 
   private router(): void {
     const apiRouter = express.Router();
+
     // Prefix all routes with /api
     this.app.use("/api", apiRouter);
+
     // Welcome route
     apiRouter.get("/", (_: Request, res: Response) =>
       res.send(`Welcome to the ${APP_NAME} API`)
@@ -45,13 +48,12 @@ export default class App {
 
     //* Define routes here
     apiRouter.use("/samples", sampleRoute.useRouter());
-
     apiRouter.use("/admin", adminRoutes);
     apiRouter.use("/products", productRoutes);
     apiRouter.use("/categories", categoryRoutes);
     apiRouter.use("/auth", authRoutes);
+    apiRouter.use("/orders", orderRoutes);
     apiRouter.use("/stocks", StockRoutes);
-
   }
 
   private errorHandlers(): void {
@@ -68,6 +70,7 @@ export default class App {
           errorStatus: error.status,
           errorMessage: error.message,
         });
+        console.log(error);
         return res.status(error.status || 500).send({
           status: error.status || 500,
           message: error.message || "Internal Server Error",

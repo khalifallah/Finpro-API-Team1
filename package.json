@@ -9,8 +9,14 @@
 		"start": "node dist/index.js",
 		"studio": "npx prisma studio",
 		"migrate:dev": "npx prisma migrate dev",
+		"generate": "npx prisma generate",
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"seed": "ts-node src/seed.ts"
+    	"seed": "ts-node src/scripts/seed.ts",
+    	"seed:reset": "ts-node src/scripts/reset-seed.ts",
+		"create-sample-products": "ts-node src/scripts/create-sample-products.ts"
+	},
+	"prisma": {
+		"seed": "ts-node src/scripts/seed.ts"
 	},
 	"author": "",
 	"license": "ISC",
@@ -18,6 +24,7 @@
 		"@prisma/client": "^6.16.2",
 		"@supabase/supabase-js": "^2.81.0",
 		"@types/sharp": "^0.31.1",
+		"axios": "^1.13.2",
 		"bcrypt": "^6.0.0",
 		"cloudinary": "^2.8.0",
 		"cors": "^2.8.5",

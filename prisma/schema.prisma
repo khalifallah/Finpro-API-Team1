@@ -240,29 +240,43 @@ model StockJournal {
 
 /// Aturan diskon per toko
 model DiscountRule {
-  id                Int       @id @default(autoincrement())
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-  storeId           Int       @map("store_id")
+  id                Int             @id @default(autoincrement())
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  storeId           Int             @map("store_id")
   /// Null jika berlaku ke semua
-  productId         Int?      @map("product_id")
-  description       String    @db.VarChar(255)
+  productId         Int?            @map("product_id")
+  description       String          @db.VarChar(255)
   /// Contoh: BOGO, DIRECT_PERCENTAGE, DIRECT_NOMINAL
-  type              String    @db.VarChar(255)
+  type              String          @db.VarChar(255)
   /// Misal: 1 (utk BOGO), 15 (utk 15%), 10000 (utk 10rb)
   value             Int?
   /// Minimal pembelian (jika ada)
-  minPurchase       Int       @default(0) @map("min_purchase")
+  minPurchase       Int             @default(0) @map("min_purchase")
   /// Limitasi diskon (jika ada)
-  maxDiscountAmount Int?      @map("max_discount_amount")
-  is_active         Boolean   @default(true)
-  startDate         DateTime? @map("start_date")
-  endDate           DateTime? @map("end_date")
-  deletedAt         DateTime? @map("deleted_at")
-  product           Product?  @relation(fields: [productId], references: [id])
-  store             Store     @relation(fields: [storeId], references: [id])
+  maxDiscountAmount Int?            @map("max_discount_amount")
+  is_active         Boolean         @default(true)
+  startDate         DateTime?       @map("start_date")
+  endDate           DateTime?       @map("end_date")
+  deletedAt         DateTime?       @map("deleted_at")
+  product           Product?        @relation(fields: [productId], references: [id])
+  store             Store           @relation(fields: [storeId], references: [id])
+  discountUsages    DiscountUsage[]
 
   @@map("discount_rules")
+}
+// Mencatat pemakaian diskon pada sebuah order
+model DiscountUsage {
+  id             Int          @id @default(autoincrement())
+  discountRuleId Int          @map("discount_rule_id")
+  orderId        Int          @map("order_id")
+  amount         Int          // Jumlah diskon yg diberikan
+  createdAt      DateTime     @default(now()) @map("created_at")
+  deletedAt      DateTime?    @map("deleted_at")
+  discountRule   DiscountRule @relation(fields: [discountRuleId], references: [id])
+  order          Order        @relation(fields: [orderId], references: [id])
+
+  @@map("discount_usages")
 }
 
 /// Template voucher
@@ -335,31 +349,32 @@ model CartItem {
 }
 
 model Order {
-  id              Int            @id @default(autoincrement())
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
-  userId          Int            @map("user_id")
+  id              Int             @id @default(autoincrement())
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  userId          Int             @map("user_id")
   /// Toko yg memproses pesanan
-  storeId         Int            @map("store_id")
-  userAddressId   Int            @map("user_address_id")
+  storeId         Int             @map("store_id")
+  userAddressId   Int             @map("user_address_id")
   /// JSON/text alamat saat checkout
-  addressSnapshot String         @map("address_snapshot")
+  addressSnapshot String          @map("address_snapshot")
   subtotal        Int
-  shippingCost    Int            @default(0) @map("shipping_cost")
-  discountAmount  Int            @default(0) @map("discount_amount")
-  totalAmount     Int            @map("total_amount")
+  shippingCost    Int             @default(0) @map("shipping_cost")
+  discountAmount  Int             @default(0) @map("discount_amount")
+  totalAmount     Int             @map("total_amount")
   /// Voucher yg dipakai
-  userVoucherId   Int?           @unique @map("user_voucher_id")
-  status          OrderStatus    @default(PENDING_PAYMENT)
-  paymentDeadline DateTime?      @map("payment_deadline")
-  deletedAt       DateTime?      @map("deleted_at")
+  userVoucherId   Int?            @unique @map("user_voucher_id")
+  status          OrderStatus     @default(PENDING_PAYMENT)
+  paymentDeadline DateTime?       @map("payment_deadline")
+  deletedAt       DateTime?       @map("deleted_at")
   orderItems      OrderItem[]
-  store           Store          @relation(fields: [storeId], references: [id])
-  userAddress     UserAddress    @relation(fields: [userAddressId], references: [id])
-  user            User           @relation(fields: [userId], references: [id])
-  userVoucher     UserVoucher?   @relation(fields: [userVoucherId], references: [id])
+  store           Store           @relation(fields: [storeId], references: [id])
+  userAddress     UserAddress     @relation(fields: [userAddressId], references: [id])
+  user            User            @relation(fields: [userId], references: [id])
+  userVoucher     UserVoucher?    @relation(fields: [userVoucherId], references: [id])
   payment         Payment?
   stockJournals   StockJournal[]
+  discountUsages  DiscountUsage[]
 
   @@map("orders")
 }

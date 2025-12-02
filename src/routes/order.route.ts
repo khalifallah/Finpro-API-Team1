@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { OrderController } from "../controllers/order/order.controller";
+import { ShippingController } from "../controllers/shipping.controller";
 import {
   verifyToken,
   requireVerifiedUser,
@@ -13,6 +14,10 @@ import {
   updateOrderStatusSchema,
   cancelOrderSchema,
 } from "../validations/order.validation";
+import {
+  calculateShippingSchema,
+  validateCheckoutSchema,
+} from "../validations/shipping.validation";
 
 const router = Router();
 
@@ -20,6 +25,45 @@ const router = Router();
 router.use(verifyToken);
 router.use(attachAuthStatus);
 
+// ==================== SHIPPING & CHECKOUT ROUTES ====================
+// Get checkout preview
+router.get(
+  "/checkout/preview",
+  requireVerifiedUser,
+  ShippingController.getCheckoutPreview
+);
+
+// Calculate shipping cost
+router.post(
+  "/shipping/calculate",
+  validateRequest(calculateShippingSchema),
+  requireVerifiedUser,
+  ShippingController.calculateShipping
+);
+
+// Validate checkout
+router.post(
+  "/checkout/validate",
+  validateRequest(validateCheckoutSchema),
+  requireVerifiedUser,
+  ShippingController.validateCheckout
+);
+
+// Get nearest store
+router.get(
+  "/shipping/nearest-store",
+  requireVerifiedUser,
+  ShippingController.getNearestStore
+);
+
+// Calculate distance
+router.post(
+  "/shipping/distance",
+  requireVerifiedUser,
+  ShippingController.calculateDistance
+);
+
+// ==================== ORDER ROUTES ====================
 // Order operations that require verification
 router.get("/", requireVerifiedUser, OrderController.getUserOrders);
 

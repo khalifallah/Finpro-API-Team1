@@ -5,6 +5,7 @@ import {
   PaymentMethod,
   PaymentStatus,
 } from "../../generated/prisma-client";
+import { ShippingService } from "../shipping.service";
 
 export interface CreateOrderData {
   userId: number;
@@ -28,6 +29,11 @@ export interface ProcessedOrderData {
 }
 
 export class OrderCreationService {
+  private shippingService: ShippingService;
+
+  constructor() {
+    this.shippingService = new ShippingService();
+  }
   async createOrder(data: CreateOrderData) {
     return await prisma.$transaction(async (tx) => {
       const cart = await this.getUserCart(tx, data.userId);
@@ -51,17 +57,37 @@ export class OrderCreationService {
         subtotal
       );
 
-      const shippingCost = this.calculateShippingCost(
-        data.shippingMethod,
-        subtotal
-      );
+      // Hitung shipping cost menggunakan ShippingService
+      const { store: shippingStore } =
+        await this.shippingService.findNearestStore(userAddress);
+
+      // Hitung total weight dari cart items
+      let totalWeight = 0;
+      for (const item of cart.cartItems) {
+        totalWeight += 1000 * item.quantity; // Default 1000g per item
+      }
+
+      const shippingResult =
+        await this.shippingService.calculateShippingForCheckout(
+          shippingStore.id,
+          userAddress,
+          totalWeight,
+          data.shippingMethod
+        );
+
+      const shippingCost = shippingResult.totalShippingCost;
       const totalAmount = subtotal + shippingCost - discountAmount;
 
+      // Update order creation dengan shipping cost
       const order = await this.createOrderRecord(tx, {
         userId: data.userId,
-        storeId: nearestStore.id,
+        storeId: shippingStore.id,
         userAddressId: userAddress.id,
-        addressSnapshot: JSON.stringify(userAddress),
+        addressSnapshot: JSON.stringify({
+          ...userAddress,
+          distance: shippingResult.distance,
+          shippingMethod: data.shippingMethod,
+        }),
         subtotal,
         shippingCost,
         discountAmount,
@@ -73,7 +99,7 @@ export class OrderCreationService {
       await this.updateStockAndCreateJournals(
         tx,
         cart.cartItems,
-        nearestStore.id,
+        shippingStore.id,
         order.id
       );
 

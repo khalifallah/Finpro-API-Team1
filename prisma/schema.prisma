@@ -94,20 +94,62 @@ model ReferralCode {
 
 /// Toko cabang di lokasi berbeda
 model Store {
-  id            Int            @id @default(autoincrement())
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  name          String         @db.VarChar(255)
-  address       String?
-  latitude      Decimal        @db.Decimal(10, 8)
-  longitude     Decimal        @db.Decimal(11, 8)
-  deletedAt     DateTime?      @map("deleted_at")
-  discountRules DiscountRule[]
-  orders        Order[]
-  productStocks ProductStock[]
-  users         User[]
+  id                 Int                 @id @default(autoincrement())
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  name               String              @db.VarChar(255)
+  address            String?
+  latitude           Decimal             @db.Decimal(10, 8)
+  longitude          Decimal             @db.Decimal(11, 8)
+  deletedAt          DateTime?           @map("deleted_at")
+  discountRules      DiscountRule[]
+  orders             Order[]
+  productStocks      ProductStock[]
+  users              User[]
+  shippingConfigs    ShippingConfig[]
+  shippingCostCaches ShippingCostCache[]
 
   @@map("stores")
+}
+
+model ShippingConfig {
+  id            Int       @id @default(autoincrement())
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  storeId       Int       @map("store_id")
+  serviceName   String    @map("service_name") @db.VarChar(255)
+  serviceCode   String    @map("service_code") @db.VarChar(255)
+  description   String?
+  cost          Int
+  estimatedDays String    @map("estimated_days") @db.VarChar(50)
+  isActive      Boolean   @default(true) @map("is_active")
+  maxDistance   Float?    @map("max_distance") // dalam kilometer
+  deletedAt     DateTime? @map("deleted_at")
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@map("shipping_configs")
+}
+
+model ShippingCostCache {
+  id                Int       @id @default(autoincrement())
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  storeId           Int       @map("store_id")
+  originCityId      String    @map("origin_city_id") @db.VarChar(10)
+  destinationCityId String    @map("destination_city_id") @db.VarChar(10)
+  serviceCode       String    @map("service_code") @db.VarChar(255)
+  serviceName       String    @map("service_name") @db.VarChar(255)
+  cost              Int
+  estimatedDays     String    @map("estimated_days") @db.VarChar(50)
+  isActive          Boolean   @default(true) @map("is_active")
+  expiresAt         DateTime  @map("expires_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, originCityId, destinationCityId, serviceCode])
+  @@map("shipping_cost_cache")
 }
 
 /// Kategori Produk

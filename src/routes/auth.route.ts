@@ -10,10 +10,6 @@ import {
   verifyToken,
   uniqueUserGuard,
   requireVerifiedUser,
-  requirePermission,
-  canAddToCart,
-  canPlaceOrders,
-  requireAuthAndVerification,
   attachAuthStatus,
 } from "../middlewares/auth.middleware";
 import { uploadProfilePhoto } from "../middlewares/upload.middleware";
@@ -34,6 +30,11 @@ import {
   updateAddressSchema,
 } from "../validations/address.validation";
 import { validateRequest } from "../middlewares/validator.middleware";
+import { CartController } from "../controllers/cart.controller";
+import {
+  addToCartSchema,
+  updateCartItemSchema,
+} from "../validations/cart.validation";
 
 const router = Router();
 
@@ -42,7 +43,6 @@ const router = Router();
 const authSessionController = new AuthSessionController();
 
 // ==================== PUBLIC ROUTES ====================
-
 // Registration & Activation
 router.post(
   "/register",
@@ -50,49 +50,40 @@ router.post(
   uniqueUserGuard,
   AuthRegistrationController.register.bind(AuthRegistrationController)
 );
-
 router.get(
   "/activate/:token",
   AuthRegistrationController.activate.bind(AuthRegistrationController)
 );
-
 router.post(
   "/set-password",
   validateRequest(setPasswordSchema),
   AuthRegistrationController.setPassword.bind(AuthRegistrationController)
 );
-
-// Login
 router.post(
   "/login",
   validateRequest(loginSchema),
   AuthSessionController.login.bind(AuthSessionController)
 );
-
 // Password reset (public)
 router.post(
   "/request-password-reset",
   AuthPasswordController.requestPasswordReset.bind(AuthPasswordController)
 );
-
 router.post(
   "/reset-password",
   validateRequest(resetPasswordSchema),
   AuthPasswordController.resetPassword.bind(AuthPasswordController)
 );
-
 router.post(
   "/verify-reset-token",
   AuthPasswordController.verifyResetToken.bind(AuthPasswordController)
 );
-
 // Resend verification email (public)
 router.post(
   "/resend-verification",
   validateRequest(resendVerificationSchema),
   AuthRegistrationController.resendVerification.bind(AuthRegistrationController)
 );
-
 // Google OAuth routes
 router.post(
   "/google",
@@ -109,44 +100,36 @@ router.get(
   "/status",
   AuthSessionController.getAuthStatus.bind(AuthSessionController)
 );
-
 router.post(
   "/unlink-google",
   AuthSessionController.unlinkGoogleAccount.bind(AuthSessionController)
 );
-
 router.post(
   "/set-social-password",
   validateRequest(setSocialPasswordSchema),
   AuthSessionController.setPasswordForSocialUser.bind(AuthSessionController)
 );
-
-// Enhanced Profile Management with proper authorization
 router.get(
   "/profile",
   requireVerifiedUser,
   ProfileController.getProfile.bind(ProfileController)
 );
-
 router.patch(
   "/profile",
   uploadProfilePhoto,
   validateRequest(updateProfileSchema),
   ProfileController.updateProfile.bind(ProfileController)
 );
-
 router.patch(
   "/profile/email",
   requireVerifiedUser,
   validateRequest(emailUpdateSchema),
   ProfileController.updateEmail.bind(ProfileController)
 );
-
 router.post(
   "/profile/request-verification",
   ProfileController.requestVerification.bind(ProfileController)
 );
-
 router.delete(
   "/profile/photo",
   requireVerifiedUser,
@@ -160,14 +143,12 @@ router.get(
   requireVerifiedUser,
   AddressController.getUserAddresses.bind(AddressController)
 );
-
 // Get specific address
 router.get(
   "/profile/addresses/:addressId",
   requireVerifiedUser,
   AddressController.getAddressById.bind(AddressController)
 );
-
 // Create new address
 router.post(
   "/profile/address",
@@ -175,7 +156,6 @@ router.post(
   requireVerifiedUser,
   AddressController.createAddress.bind(AddressController)
 );
-
 // Update address
 router.patch(
   "/profile/addresses/:addressId",
@@ -183,14 +163,12 @@ router.patch(
   requireVerifiedUser,
   AddressController.updateAddress.bind(AddressController)
 );
-
 // Delete address
 router.delete(
   "/profile/addresses/:addressId",
   requireVerifiedUser,
   AddressController.deleteAddress.bind(AddressController)
 );
-
 // Set address as main
 router.patch(
   "/profile/addresses/:addressId/set-main",
@@ -198,7 +176,6 @@ router.patch(
   AddressController.setMainAddress.bind(AddressController)
 );
 
-// Password management (for logged-in users)
 // Password management (for logged-in users)
 router.post(
   "/change-password",
@@ -212,12 +189,50 @@ router.post(
   validateRequest(resetPasswordSchema),
   AuthPasswordController.resetPasswordLoggedIn.bind(AuthPasswordController)
 );
-
-// Keep backward compatibility
 router.get(
   "/me",
   requireVerifiedUser,
   AuthSessionController.getCurrentUser.bind(AuthSessionController)
+);
+
+// ==================== CART MANAGEMENT ROUTES ====================
+// Get user cart
+router.get(
+  "/cart",
+  requireVerifiedUser,
+  CartController.getCart.bind(CartController)
+);
+// Get cart summary
+router.get(
+  "/cart/summary",
+  requireVerifiedUser,
+  CartController.getCartSummary.bind(CartController)
+);
+// Add item to cart
+router.post(
+  "/cart/items",
+  validateRequest(addToCartSchema),
+  requireVerifiedUser,
+  CartController.addToCart.bind(CartController)
+);
+// Update cart item
+router.patch(
+  "/cart/items/:cartItemId",
+  validateRequest(updateCartItemSchema),
+  requireVerifiedUser,
+  CartController.updateCartItem.bind(CartController)
+);
+// Remove item from cart
+router.delete(
+  "/cart/items/:cartItemId",
+  requireVerifiedUser,
+  CartController.removeCartItem.bind(CartController)
+);
+// Clear cart
+router.delete(
+  "/cart",
+  requireVerifiedUser,
+  CartController.clearCart.bind(CartController)
 );
 
 export default router;

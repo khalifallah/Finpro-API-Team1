@@ -92,7 +92,7 @@ export const deleteDiscountRule = async (id: number): Promise<void> => {
         });
 
     } catch (err: any) {
-        throw err;
+        throw new Error(`Failed to delete discount rule: ${err.message}`);
     }
 }
 
@@ -128,7 +128,7 @@ export const restoreDiscountRule = async (id: number): Promise<DiscountRuleRespo
         return transformDiscountRuleToResponse(restoredRule);
 
     } catch (err: any) {
-        throw err;
+        throw new Error(`Failed to restore discount rule: ${err.message}`);
     }
 };
 
@@ -161,7 +161,7 @@ export const applyDiscount = async (data: ApplyDiscountRequest): Promise<{discou
         });
         return { discountAmount };
     } catch (err: any) {
-        throw err;
+        throw new Error(`Failed to apply discount: ${err.message}`);
     }
 };
 

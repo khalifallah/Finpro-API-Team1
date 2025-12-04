@@ -55,6 +55,7 @@ export class AuthLoginService {
         role: user.role,
         photoUrl: user.photoUrl,
         storeId: user.storeId,
+        emailVerifiedAt: user.emailVerifiedAt, // Add this line
       };
 
       const token = generateJWT(payload);
@@ -76,6 +77,7 @@ export class AuthLoginService {
         role: user.role,
         photoUrl: user.photoUrl,
         storeId: user.storeId,
+        emailVerifiedAt: user.emailVerifiedAt,
       };
 
       const token = generateJWT(payload);

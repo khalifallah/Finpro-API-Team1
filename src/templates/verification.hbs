@@ -37,9 +37,11 @@
         
         <p>Click the button below to verify your email and set your password:</p>
         
-        <div style="text-align: center;">
-          <a href="{{verificationLink}}" class="button">Verify Email & Set Password</a>
-        </div>
+        <p>Click the link below to verify your email:</p>
+        <a href="{{CLIENT_URL}}/verify-email?token={{token}}&email={{email}}" 
+            style="display: inline-block; padding: 10px 20px; background-color: #9ec79fff; color: white; text-decoration: none; border-radius: 5px;">
+            Verify Email
+        </a>
         
         <div class="warning">
           <strong>Note:</strong> If you don't verify within 1 hour, you'll need to request a new verification link.

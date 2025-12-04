@@ -235,4 +235,10 @@ router.delete(
   CartController.clearCart.bind(CartController)
 );
 
+router.get(
+  "/verification-status",
+  verifyToken,
+  AuthSessionController.checkVerificationStatus.bind(AuthSessionController)
+);
+
 export default router;

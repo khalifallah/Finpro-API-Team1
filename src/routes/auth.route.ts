@@ -6,6 +6,7 @@ import {
 } from "../controllers/auth/auth.controller";
 import { ProfileController } from "../controllers/profile.controller";
 import { AddressController } from "../controllers/address.controller";
+import { CartController } from "../controllers/cart.controller";
 import {
   verifyToken,
   uniqueUserGuard,
@@ -29,6 +30,10 @@ import {
   createAddressSchema,
   updateAddressSchema,
 } from "../validations/address.validation";
+import {
+  addToCartSchema,
+  updateCartItemSchema,
+} from "../validations/cart.validation";
 import { validateRequest } from "../middlewares/validator.middleware";
 
 const router = Router();

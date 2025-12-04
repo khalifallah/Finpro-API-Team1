@@ -30,11 +30,6 @@ import {
   updateAddressSchema,
 } from "../validations/address.validation";
 import { validateRequest } from "../middlewares/validator.middleware";
-import { CartController } from "../controllers/cart.controller";
-import {
-  addToCartSchema,
-  updateCartItemSchema,
-} from "../validations/cart.validation";
 
 const router = Router();
 
@@ -193,46 +188,6 @@ router.get(
   "/me",
   requireVerifiedUser,
   AuthSessionController.getCurrentUser.bind(AuthSessionController)
-);
-
-// ==================== CART MANAGEMENT ROUTES ====================
-// Get user cart
-router.get(
-  "/cart",
-  requireVerifiedUser,
-  CartController.getCart.bind(CartController)
-);
-// Get cart summary
-router.get(
-  "/cart/summary",
-  requireVerifiedUser,
-  CartController.getCartSummary.bind(CartController)
-);
-// Add item to cart
-router.post(
-  "/cart/items",
-  validateRequest(addToCartSchema),
-  requireVerifiedUser,
-  CartController.addToCart.bind(CartController)
-);
-// Update cart item
-router.patch(
-  "/cart/items/:cartItemId",
-  validateRequest(updateCartItemSchema),
-  requireVerifiedUser,
-  CartController.updateCartItem.bind(CartController)
-);
-// Remove item from cart
-router.delete(
-  "/cart/items/:cartItemId",
-  requireVerifiedUser,
-  CartController.removeCartItem.bind(CartController)
-);
-// Clear cart
-router.delete(
-  "/cart",
-  requireVerifiedUser,
-  CartController.clearCart.bind(CartController)
 );
 
 export default router;

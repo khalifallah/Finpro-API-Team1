@@ -27,4 +27,8 @@ export class OrderUserController {
   async uploadPaymentProof(req: any, res: any, next: any) {
     return orderUserMutationController.uploadPaymentProof(req, res, next);
   }
+
+  async confirmOrderReceived(req: any, res: any, next: any) {
+    return orderUserMutationController.confirmOrderReceived(req, res, next);
+  }
 }

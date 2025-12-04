@@ -4,16 +4,19 @@ import { responseBuilder } from "../../utils/response.builder";
 import { OrderCreationService } from "../../services/order/order-creation.service";
 import { OrderCancellationService } from "../../services/order/order-cancellation.service";
 import { OrderPaymentService } from "../../services/order/order-payment.service";
+import { OrderCompletionService } from "../../services/order/order-completion.service";
 
 export class OrderUserMutationController {
   private orderCreationService: OrderCreationService;
   private orderCancellationService: OrderCancellationService;
   private orderPaymentService: OrderPaymentService;
+  private orderCompletionService: OrderCompletionService;
 
   constructor() {
     this.orderCreationService = new OrderCreationService();
     this.orderCancellationService = new OrderCancellationService();
     this.orderPaymentService = new OrderPaymentService();
+    this.orderCompletionService = new OrderCompletionService();
   }
 
   async createOrder(
@@ -99,6 +102,29 @@ export class OrderUserMutationController {
         .json(
           responseBuilder(200, "Payment proof uploaded successfully", result)
         );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async confirmOrderReceived(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) throw new AppError("User not authenticated", 401);
+
+      const { orderId } = req.params;
+
+      const result = await this.orderCompletionService.confirmOrderReceived(
+        req.user.id,
+        Number(orderId)
+      );
+
+      res
+        .status(200)
+        .json(responseBuilder(200, "Order confirmed received", result));
     } catch (error) {
       next(error);
     }

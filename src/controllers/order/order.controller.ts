@@ -27,6 +27,10 @@ export class OrderController {
     return orderUserController.uploadPaymentProof(req, res, next);
   }
 
+  static async confirmOrderReceived(req: any, res: any, next: any) {
+    return orderUserController.confirmOrderReceived(req, res, next);
+  }
+
   // Admin order methods
   static async getAllOrders(req: any, res: any, next: any) {
     return orderAdminController.getAllOrders(req, res, next);

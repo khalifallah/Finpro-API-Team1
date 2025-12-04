@@ -23,4 +23,8 @@ export class OrderUserController {
   async cancelOrder(req: any, res: any, next: any) {
     return orderUserMutationController.cancelOrder(req, res, next);
   }
+
+  async uploadPaymentProof(req: any, res: any, next: any) {
+    return orderUserMutationController.uploadPaymentProof(req, res, next);
+  }
 }

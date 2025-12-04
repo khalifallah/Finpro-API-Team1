@@ -23,6 +23,10 @@ export class OrderController {
     return orderUserController.cancelOrder(req, res, next);
   }
 
+  static async uploadPaymentProof(req: any, res: any, next: any) {
+    return orderUserController.uploadPaymentProof(req, res, next);
+  }
+
   // Admin order methods
   static async getAllOrders(req: any, res: any, next: any) {
     return orderAdminController.getAllOrders(req, res, next);

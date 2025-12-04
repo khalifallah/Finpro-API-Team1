@@ -4,10 +4,14 @@ import {
   addToCartSchema,
   updateCartItemSchema,
 } from "../validations/cart.validation";
-import { requireVerifiedUser } from "../middlewares/auth.middleware";
+import {
+  requireVerifiedUser,
+  verifyToken,
+} from "../middlewares/auth.middleware";
 import { validateRequest } from "../middlewares/validator.middleware";
 
 const router = Router();
+router.use(verifyToken);
 
 // ==================== CART MANAGEMENT ROUTES ====================
 // Get user cart

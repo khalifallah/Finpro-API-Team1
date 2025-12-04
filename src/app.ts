@@ -20,15 +20,19 @@ import orderRoutes from "./routes/order.route";
 import storeRoutes from "./routes/store.route";
 import cartRoute from "./routes/cart.route";
 import prisma from "./libs/prisma";
+import { OrderCleanupJob } from "./jobs/order-cleanup.job";
 
 export default class App {
   public app: Application;
+  private orderCleanupJob: OrderCleanupJob;
 
   constructor() {
     this.app = express();
     this.config();
     this.router();
     this.errorHandlers();
+    this.orderCleanupJob = new OrderCleanupJob();
+    this.orderCleanupJob.start();
   }
 
   private config(): void {

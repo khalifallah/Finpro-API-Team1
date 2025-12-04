@@ -8,6 +8,7 @@ export class OrderCleanupJob {
     cron.schedule("* * * * *", async () => {
       console.log("Running Order Cleanup Job: Checking expired orders...");
       await this.processExpiredOrders();
+      await this.processAutoCompleteOrders();
     });
   }
 
@@ -41,6 +42,43 @@ export class OrderCleanupJob {
       }
     } catch (error) {
       console.error("Error in Order Cleanup Job:", error);
+    }
+  }
+
+  private async processAutoCompleteOrders() {
+    try {
+      // Hitung tanggal 7 hari yang lalu
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const shippedOrders = await prisma.order.findMany({
+        where: {
+          status: OrderStatus.SHIPPED, // Hanya yang sedang dikirim
+          updatedAt: { lt: sevenDaysAgo }, // Yang diupdate (dikirim) > 7 hari lalu
+          deletedAt: null,
+        },
+      });
+
+      if (shippedOrders.length > 0) {
+        console.log(
+          `Found ${shippedOrders.length} shipped orders > 7 days. Completing...`
+        );
+
+        // Update massal (Batch Update) karena tidak ada logika stok rumit
+        const result = await prisma.order.updateMany({
+          where: {
+            id: { in: shippedOrders.map((o) => o.id) },
+          },
+          data: {
+            status: OrderStatus.CONFIRMED, //
+            updatedAt: new Date(),
+          },
+        });
+
+        console.log(`Auto-completed ${result.count} orders.`);
+      }
+    } catch (error) {
+      console.error("Error in Auto-Complete Job:", error);
     }
   }
 

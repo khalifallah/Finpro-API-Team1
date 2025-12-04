@@ -144,7 +144,7 @@ export class CartService {
   }
 
   // Dapatkan cart user
-  async getUserCart(userId: number): Promise<any> {
+  async getUserCart(userId: number, storeId: number = 1): Promise<any> {
     try {
       const cart = await prisma.cart.findUnique({
         where: { userId },
@@ -159,6 +159,11 @@ export class CartService {
                     take: 1,
                   },
                   category: true,
+                  productStocks: {
+                    where: {
+                      storeId: storeId,
+                    },
+                  },
                 },
               },
             },
@@ -197,13 +202,21 @@ export class CartService {
       let totalItems = 0;
       let subtotal = 0;
 
-      for (const item of cart.cartItems) {
+      const itemsWithStock = cart.cartItems.map((item: any) => {
         totalItems += item.quantity;
         subtotal += item.product.defaultPrice * item.quantity;
-      }
+
+        const availableStock = item.product.productStocks[0]?.quantity || 0;
+
+        return {
+          ...item,
+          stockAvailable: availableStock,
+        };
+      });
 
       return {
         ...cart,
+        cartItems: itemsWithStock,
         totalItems,
         subtotal,
       };

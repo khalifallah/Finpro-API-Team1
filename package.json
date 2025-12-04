@@ -11,8 +11,8 @@
 		"migrate:dev": "npx prisma migrate dev",
 		"generate": "npx prisma generate",
 		"test": "echo \"Error: no test specified\" && exit 1",
-    	"seed": "ts-node src/scripts/seed.ts",
-    	"seed:reset": "ts-node src/scripts/reset-seed.ts",
+		"seed": "ts-node src/scripts/seed.ts",
+		"seed:reset": "ts-node src/scripts/reset-seed.ts",
 		"create-sample-products": "ts-node src/scripts/create-sample-products.ts"
 	},
 	"prisma": {
@@ -34,6 +34,7 @@
 		"handlebars": "^4.7.8",
 		"jsonwebtoken": "^9.0.2",
 		"multer": "^2.0.2",
+		"node-cron": "^4.2.1",
 		"nodemailer": "^7.0.11",
 		"passport": "^0.7.0",
 		"passport-google-oauth20": "^2.0.0",
@@ -48,6 +49,7 @@
 		"@types/handlebars": "^4.0.40",
 		"@types/jsonwebtoken": "^9.0.10",
 		"@types/multer": "^2.0.0",
+		"@types/node-cron": "^3.0.11",
 		"@types/nodemailer": "^7.0.4",
 		"@types/streamifier": "^0.1.2",
 		"prisma": "^6.16.2",

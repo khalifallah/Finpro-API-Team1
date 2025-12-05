@@ -9,9 +9,13 @@ router.use(adminAuth);
 
 // Public to admins: List and details
 router.get("/", discountController.getDiscountRules);
+
+// SPESIFIK ROUTES HARUS SEBELUM DYNAMIC ROUTES
+router.get("/deleted", discountController.getDeletedDiscountRules);
+
+// DYNAMIC ROUTES
 router.get("/:id/usages", discountController.getDiscountUsages); 
 router.get("/:id", discountController.getDiscountById);
-router.get("/deleted", discountController.getDeletedDiscountRules);
 
 // STORE_ADMIN: CRUD-OPS
 router.post("/", discountController.createDiscountRule);

@@ -2,8 +2,16 @@ import { Request, Response, NextFunction } from "express";
 import prisma from "../../libs/prisma";
 import AppError from "../../errors/app.error";
 import { responseBuilder } from "../../utils/response.builder";
+import { OrderCancellationService } from "../../services/order/order-cancellation.service";
+import { OrderStatus, PaymentStatus } from "../../generated/prisma-client";
 
 export class OrderAdminController {
+  private ordercancellationService: OrderCancellationService;
+
+  constructor() {
+    this.ordercancellationService = new OrderCancellationService();
+  }
+
   async getAllOrders(
     req: Request,
     res: Response,
@@ -110,6 +118,7 @@ export class OrderAdminController {
         },
         include: {
           store: true,
+          payment: true,
         },
       });
 
@@ -124,23 +133,45 @@ export class OrderAdminController {
         throw new AppError("Access denied to this order", 403);
       }
 
-      const updatedOrder = await prisma.order.update({
-        where: { id: order.id },
-        data: { status },
-        include: {
-          orderItems: {
-            include: {
-              product: true,
-            },
+      if (status === OrderStatus.CANCELLED) {
+        await this.ordercancellationService.cancelOrder({
+          orderId: order.id,
+          userId: order.userId,
+          reason: adminNotes || "Cancelled by admin",
+        });
+
+        res
+          .status(200)
+          .json(responseBuilder(200, "Order cancelled & stock restored", null));
+        return;
+      }
+
+      const updatedOrder = await prisma.$transaction(async (tx) => {
+        if (status === OrderStatus.PROCESSING) {
+          if (order.payment) {
+            await tx.payment.update({
+              where: { id: order.payment.id },
+              data: { status: PaymentStatus.CONFIRMED },
+            });
+          }
+        } else if (status === OrderStatus.PENDING_PAYMENT) {
+          if (order.payment) {
+            await tx.payment.update({
+              where: { id: order.payment.id },
+              data: { status: PaymentStatus.REJECTED },
+            });
+          }
+        }
+
+        return await tx.order.update({
+          where: { id: order.id },
+          data: { status },
+          include: {
+            orderItems: { include: { product: true } },
+            user: { select: { id: true, fullName: true, email: true } },
+            payment: true,
           },
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              email: true,
-            },
-          },
-        },
+        });
       });
 
       res.status(200).json(

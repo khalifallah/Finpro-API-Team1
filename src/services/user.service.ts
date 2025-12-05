@@ -10,6 +10,7 @@ const prisma = new PrismaClient();
 
 export const getAllUsers = async (): Promise<UserResponse[]> => {
   const users = await prisma.user.findMany({
+    where: { deletedAt: null },
     select: {
       id: true,
       fullName: true,
@@ -24,7 +25,10 @@ export const getAllUsers = async (): Promise<UserResponse[]> => {
 
 export const getStoreAdmins = async (): Promise<UserResponse[]> => {
   const users = await prisma.user.findMany({
-    where: { role: "STORE_ADMIN" },
+    where: {
+      role: "STORE_ADMIN",
+      deletedAt: null,
+    },
     select: {
       id: true,
       fullName: true,
@@ -48,6 +52,7 @@ export const createStoreAdmin = async (
       passwordHash: hashedPassword,
       role: "STORE_ADMIN",
       storeId: data.storeId,
+      emailVerifiedAt: new Date(), // Auto-verify for admin users
     },
     select: {
       id: true,
@@ -78,5 +83,9 @@ export const updateUser = async (id: number, data: UpdateUserRequest) => {
 };
 
 export const deleteUser = async (id: number): Promise<void> => {
-  await prisma.user.delete({ where: { id } });
+  // Soft delete
+  await prisma.user.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
 };

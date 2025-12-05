@@ -68,7 +68,7 @@ export class CartService {
           );
         }
 
-        // 4. Cek apakah item sudah ada di cart
+        // 4. Cek apakah item sudah ada di cart (termasuk yang soft deleted)
         const existingCartItem = await tx.cartItem.findUnique({
           where: {
             cartId_productId: {
@@ -80,20 +80,35 @@ export class CartService {
 
         let cartItem;
         if (existingCartItem) {
-          // Update quantity jika sudah ada
-          const newQuantity = existingCartItem.quantity + data.quantity;
+          // --- LOGIKA UPDATE / RESTORE ---
+
+          let newQuantity;
+
+          if (existingCartItem.deletedAt) {
+            // KASUS A: Item dulunya sudah dihapus (Soft Delete)
+            // Kita anggap ini barang baru masuk. Abaikan jumlah lama yang sudah dibuang.
+            newQuantity = data.quantity;
+          } else {
+            // KASUS B: Item masih aktif di keranjang.
+            // Kita tambahkan jumlah baru ke jumlah lama.
+            newQuantity = existingCartItem.quantity + data.quantity;
+          }
 
           // Validasi stok lagi dengan quantity baru
           if (productStock.quantity < newQuantity) {
             throw new AppError(
-              `Cannot add ${data.quantity} more items. Total would exceed available stock.`,
+              `Cannot add items. Total ${newQuantity} exceeds available stock (${productStock.quantity}).`,
               400
             );
           }
 
+          // Lakukan Update (Sekaligus Restore jika deletedAt ada isinya)
           cartItem = await tx.cartItem.update({
             where: { id: existingCartItem.id },
-            data: { quantity: newQuantity },
+            data: {
+              quantity: newQuantity,
+              deletedAt: null, // <--- PENTING: Hapus status deleted (Restore)
+            },
             include: {
               product: {
                 include: {
@@ -106,7 +121,7 @@ export class CartService {
             },
           });
         } else {
-          // Buat item baru di cart
+          // --- LOGIKA INSERT BARU ---
           cartItem = await tx.cartItem.create({
             data: {
               cartId: cart.id,
@@ -129,9 +144,10 @@ export class CartService {
         return {
           cartItem,
           cartId: cart.id,
-          message: existingCartItem
-            ? "Cart item updated"
-            : "Item added to cart",
+          message:
+            existingCartItem && !existingCartItem.deletedAt
+              ? "Cart item updated"
+              : "Item added to cart",
         };
       });
     } catch (error) {
@@ -144,7 +160,7 @@ export class CartService {
   }
 
   // Dapatkan cart user
-  async getUserCart(userId: number): Promise<any> {
+  async getUserCart(userId: number, storeId: number = 1): Promise<any> {
     try {
       const cart = await prisma.cart.findUnique({
         where: { userId },
@@ -159,6 +175,11 @@ export class CartService {
                     take: 1,
                   },
                   category: true,
+                  productStocks: {
+                    where: {
+                      storeId: storeId,
+                    },
+                  },
                 },
               },
             },
@@ -197,13 +218,21 @@ export class CartService {
       let totalItems = 0;
       let subtotal = 0;
 
-      for (const item of cart.cartItems) {
+      const itemsWithStock = cart.cartItems.map((item: any) => {
         totalItems += item.quantity;
         subtotal += item.product.defaultPrice * item.quantity;
-      }
+
+        const availableStock = item.product.productStocks[0]?.quantity || 0;
+
+        return {
+          ...item,
+          stockAvailable: availableStock,
+        };
+      });
 
       return {
         ...cart,
+        cartItems: itemsWithStock,
         totalItems,
         subtotal,
       };

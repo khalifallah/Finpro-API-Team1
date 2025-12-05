@@ -6,6 +6,7 @@ import {
 } from "../controllers/auth/auth.controller";
 import { ProfileController } from "../controllers/profile.controller";
 import { AddressController } from "../controllers/address.controller";
+import { CartController } from "../controllers/cart.controller";
 import {
   verifyToken,
   uniqueUserGuard,
@@ -29,12 +30,11 @@ import {
   createAddressSchema,
   updateAddressSchema,
 } from "../validations/address.validation";
-import { validateRequest } from "../middlewares/validator.middleware";
-import { CartController } from "../controllers/cart.controller";
 import {
   addToCartSchema,
   updateCartItemSchema,
 } from "../validations/cart.validation";
+import { validateRequest } from "../middlewares/validator.middleware";
 
 const router = Router();
 
@@ -233,6 +233,12 @@ router.delete(
   "/cart",
   requireVerifiedUser,
   CartController.clearCart.bind(CartController)
+);
+
+router.get(
+  "/verification-status",
+  verifyToken,
+  AuthSessionController.checkVerificationStatus.bind(AuthSessionController)
 );
 
 export default router;

@@ -37,8 +37,11 @@ export class CartController {
       const userId = getUserId(req);
       const { productId, quantity, storeId } = req.body;
 
-      if (!productId || !quantity) {
-        throw new AppError("Product ID and quantity are required", 400);
+      if (!productId || !quantity || !storeId) {
+        throw new AppError(
+          "Product ID, quantity, and storeId are required",
+          400
+        );
       }
 
       if (quantity <= 0) {
@@ -71,7 +74,15 @@ export class CartController {
   ): Promise<void> {
     try {
       const userId = getUserId(req);
-      const cart = await cartService.getUserCart(userId);
+      const { storeId } = req.query;
+
+      const targetStoreId = storeId ? Number(storeId) : 1;
+
+      if (isNaN(targetStoreId)) {
+        throw new AppError("Invalid store ID format", 400);
+      }
+
+      const cart = await cartService.getUserCart(userId, targetStoreId);
 
       res.status(200).json(
         responseBuilder(200, "Cart retrieved successfully", {

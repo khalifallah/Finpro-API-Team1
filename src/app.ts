@@ -18,16 +18,23 @@ import StockRoutes from "./routes/stock.route";
 import discountRoutes from "./routes/discount.route";
 import authRoutes from "./routes/auth.route";
 import orderRoutes from "./routes/order.route";
+import storeRoutes from "./routes/store.route";
+import homepageRoutes from "./routes/homepage.route";
+import cartRoute from "./routes/cart.route";
 import prisma from "./libs/prisma";
+import { OrderCleanupJob } from "./jobs/order-cleanup.job";
 
 export default class App {
   public app: Application;
+  private orderCleanupJob: OrderCleanupJob;
 
   constructor() {
     this.app = express();
     this.config();
     this.router();
     this.errorHandlers();
+    this.orderCleanupJob = new OrderCleanupJob();
+    this.orderCleanupJob.start();
   }
 
   private config(): void {
@@ -56,6 +63,9 @@ export default class App {
     apiRouter.use("/orders", orderRoutes);
     apiRouter.use("/stocks", StockRoutes);
     apiRouter.use("/discounts", discountRoutes);
+    apiRouter.use("/stores", storeRoutes);
+    apiRouter.use("/homepage", homepageRoutes);
+    apiRouter.use("/cart", cartRoute);
   }
 
   private errorHandlers(): void {

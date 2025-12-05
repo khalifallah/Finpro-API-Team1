@@ -11,6 +11,7 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
     const dateStart = new Date(year, month - 1, 1);
     const dateEnd = new Date(year, month, 1);
 
+    // Get journals for changes
     const journals = await prisma.stockJournal.findMany({
       where: {
         createdAt: { gte: dateStart, lt: dateEnd },
@@ -19,6 +20,7 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
       include: { productStock: { include: { product: true } } },
     });
 
+    // Aggregate changes
     const grouped = journals.reduce((acc, journal) => {
       const key = journal.productStock.productId;
       if (!acc[key]) {
@@ -27,6 +29,7 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
           productName: journal.productStock.product.name,
           totalAdded: 0,
           totalSubtracted: 0,
+          storeId: journal.productStock.storeId,
         };
       }
       if (journal.quantityChange > 0) {
@@ -37,8 +40,27 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
       return acc;
     }, {} as Record<number, any>);
 
+    // Get current stock for finalStock
+    const productIds = Object.keys(grouped).map(id => parseInt(id));
+    const currentStocks = await prisma.productStock.findMany({
+      where: {
+        productId: { in: productIds },
+        ...(finalStoreId ? { storeId: finalStoreId } : {}),
+      },
+      select: { productId: true, quantity: true },
+    });
+
+    const stockMap = currentStocks.reduce((map, stock) => {
+      map[stock.productId] = stock.quantity;
+      return map;
+    }, {} as Record<number, number>);
+
     return Object.values(grouped).map(s => ({
-      ...s, month, year, storeId: finalStoreId || null,
+      ...s,
+      finalStock: stockMap[s.productId] || 0, // { added } - current quantity as final stock
+      month,
+      year,
+      storeId: finalStoreId || null,
     }));
   } catch (error) {
     console.error("Error in getStockSummary:", error);

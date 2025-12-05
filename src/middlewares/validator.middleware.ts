@@ -1,14 +1,28 @@
 import { Request, Response, NextFunction } from "express";
-import { AnySchema } from "yup";
-import { appErrorHandler } from "../errors/handlers/app.error.handler";
+import { AnySchema, ValidationError } from "yup";
+import AppError from "../errors/app.error";
 
 export const validateRequest = (schema: AnySchema) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    console.log(`[VALIDATION] Validating ${req.method} ${req.originalUrl}`);
+    console.log(`[VALIDATION] Request body:`, req.body);
+    console.log(`[VALIDATION] Query params:`, req.query);
+
     try {
-      await schema.validate(req.body, { abortEarly: false });
-      next();
-    } catch (error: any) {
-      appErrorHandler(error, next);
+      // use synchronous validation so we can catch and format errors easily
+      schema.validateSync(req.body, { abortEarly: false, stripUnknown: true });
+    } catch (err) {
+      if (err && err instanceof ValidationError) {
+        const errorMessage: string = (err.errors || []).join(", ");
+        console.log(`[VALIDATION ERROR] Schema:`, schema);
+        console.log(`[VALIDATION ERROR] Details:`, err.errors);
+        throw new AppError(errorMessage, 400);
+      }
+      // rethrow unexpected errors
+      throw err;
     }
+
+    console.log(`[VALIDATION] Validation passed`);
+    next();
   };
 };

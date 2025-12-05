@@ -10,7 +10,10 @@ import AppError from "../../errors/app.error";
 import { responseBuilder } from "../../utils/response.builder";
 import { IGoogleUser } from "../../types/user.types";
 import { AuthLoginService } from "../../services/auth/auth-login.service";
+import { AuthVerificationService } from "../../services/auth/auth-verification.service";
 import { OAuthService } from "../../services/auth/oauth.service";
+import { GoogleAuthService as GoogleTokenVerifier } from "../../services/auth/google-auth.service";
+import prisma from "../../libs/prisma";
 
 export class AuthSessionController {
   static async login(req: Request, res: Response, next: NextFunction) {
@@ -39,20 +42,35 @@ export class AuthSessionController {
 
   static async googleAuth(req: Request, res: Response, next: NextFunction) {
     try {
-      const { googleId, email, name, picture } = req.body;
+      const { idToken } = req.body; // Get idToken from request body
 
-      if (!googleId || !email || !name) {
-        throw new AppError("Missing required Google user information", 400);
+      if (!idToken) {
+        throw new AppError("Google ID token is required", 400);
       }
 
+      // Verify the Google token
+      const googleAuthService = new GoogleTokenVerifier();
+      const googleUserInfo = await googleAuthService.verifyGoogleToken(idToken);
+
+      // Validate required fields
+      if (!googleUserInfo.email) {
+        throw new AppError("Email not provided by Google", 400);
+      }
+
+      // Ensure name provided
+      if (!googleUserInfo.name) {
+        throw new AppError("Name not provided by Google", 400);
+      }
+
+      // Create IGoogleUser object
       const googleUser: IGoogleUser = {
-        googleId,
-        email,
-        name,
-        picture,
+        googleId: googleUserInfo.googleId,
+        email: googleUserInfo.email,
+        name: googleUserInfo.name,
+        picture: googleUserInfo.picture,
       };
 
-      // Use the proper service
+      // Use the auth login service
       const authLoginService = new AuthLoginService();
       const data = await authLoginService.googleAuth(googleUser);
 
@@ -165,6 +183,67 @@ export class AuthSessionController {
             {}
           )
         );
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async checkVerificationStatus(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      if (!req.user) {
+        throw new AppError("User not authenticated", 401);
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: {
+          id: true,
+          email: true,
+          emailVerifiedAt: true,
+          socialAccounts: {
+            select: {
+              provider: true,
+              providerUserId: true,
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new AppError("User not found", 404);
+      }
+
+      interface SocialAccount {
+        provider: string;
+        providerUserId: string;
+      }
+
+      interface UserVerificationData {
+        id: number;
+        email: string;
+        emailVerifiedAt: Date | null;
+        socialAccounts: SocialAccount[];
+      }
+
+      const typedUser = user as UserVerificationData;
+
+      res.status(200).json(
+        responseBuilder(200, "Verification status retrieved", {
+          user: {
+            id: typedUser.id,
+            email: typedUser.email,
+            emailVerifiedAt: typedUser.emailVerifiedAt,
+            isGoogleUser: typedUser.socialAccounts.some(
+              (account: SocialAccount) => account.provider === "google"
+            ),
+            socialAccounts: typedUser.socialAccounts,
+          },
+        })
+      );
     } catch (err) {
       next(err);
     }

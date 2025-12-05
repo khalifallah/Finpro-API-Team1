@@ -6,6 +6,7 @@ import {
 } from "../controllers/auth/auth.controller";
 import { ProfileController } from "../controllers/profile.controller";
 import { AddressController } from "../controllers/address.controller";
+import { CartController } from "../controllers/cart.controller";
 import {
   verifyToken,
   uniqueUserGuard,
@@ -29,6 +30,10 @@ import {
   createAddressSchema,
   updateAddressSchema,
 } from "../validations/address.validation";
+import {
+  addToCartSchema,
+  updateCartItemSchema,
+} from "../validations/cart.validation";
 import { validateRequest } from "../middlewares/validator.middleware";
 
 const router = Router();
@@ -188,6 +193,52 @@ router.get(
   "/me",
   requireVerifiedUser,
   AuthSessionController.getCurrentUser.bind(AuthSessionController)
+);
+
+// ==================== CART MANAGEMENT ROUTES ====================
+// Get user cart
+router.get(
+  "/cart",
+  requireVerifiedUser,
+  CartController.getCart.bind(CartController)
+);
+// Get cart summary
+router.get(
+  "/cart/summary",
+  requireVerifiedUser,
+  CartController.getCartSummary.bind(CartController)
+);
+// Add item to cart
+router.post(
+  "/cart/items",
+  validateRequest(addToCartSchema),
+  requireVerifiedUser,
+  CartController.addToCart.bind(CartController)
+);
+// Update cart item
+router.patch(
+  "/cart/items/:cartItemId",
+  validateRequest(updateCartItemSchema),
+  requireVerifiedUser,
+  CartController.updateCartItem.bind(CartController)
+);
+// Remove item from cart
+router.delete(
+  "/cart/items/:cartItemId",
+  requireVerifiedUser,
+  CartController.removeCartItem.bind(CartController)
+);
+// Clear cart
+router.delete(
+  "/cart",
+  requireVerifiedUser,
+  CartController.clearCart.bind(CartController)
+);
+
+router.get(
+  "/verification-status",
+  verifyToken,
+  AuthSessionController.checkVerificationStatus.bind(AuthSessionController)
 );
 
 export default router;

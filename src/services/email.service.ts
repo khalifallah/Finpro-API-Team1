@@ -1,6 +1,10 @@
 import nodemailer from "nodemailer";
 import { IEmailService } from "../types/user.types";
-import { FE_URL, NODEMAILER_USER, NODEMAILER_PASS } from "../config/app.config";
+import {
+  CLIENT_URL,
+  NODEMAILER_USER,
+  NODEMAILER_PASS,
+} from "../config/app.config";
 import path from "path";
 import fs from "fs";
 import handlebars from "handlebars";
@@ -74,7 +78,7 @@ export class EmailService implements IEmailService {
   }
 
   async sendPasswordResetEmail(email: string, token: string): Promise<void> {
-    const resetLink = `${FE_URL}/reset-password/confirm?token=${token}`;
+    const resetLink = `${CLIENT_URL}/reset-password/confirm?token=${token}`;
     console.log(`Password reset email sent to ${email}`);
     console.log(`Reset link: ${resetLink}`);
     try {
@@ -119,7 +123,9 @@ export class EmailService implements IEmailService {
   }
 
   async sendVerificationEmail(email: string, token: string): Promise<void> {
-    const verificationLink = `${FE_URL}/verify-email?token=${token}`;
+    const verificationLink = `${CLIENT_URL}/verify-email?token=${token}&email=${encodeURIComponent(
+      email
+    )}`;
     console.log(`Verification email sent to ${email}`);
     console.log(`Verification link: ${verificationLink}`);
     console.log(`Token expires in: 1 hour`);
@@ -127,6 +133,9 @@ export class EmailService implements IEmailService {
       const html = this.templates.verification({
         logoHtml: this.getLogoHtml(),
         verificationLink: verificationLink,
+        CLIENT_URL: CLIENT_URL,
+        email: email,
+        token: token,
       });
       await Transporter.sendMail({
         from: `Grocery App <${NODEMAILER_USER}>`,
@@ -144,7 +153,9 @@ export class EmailService implements IEmailService {
     email: string,
     newToken: string
   ): Promise<void> {
-    const verificationLink = `${FE_URL}/verify-email?token=${newToken}`;
+    const verificationLink = `${CLIENT_URL}/verify-email?token=${newToken}&email=${encodeURIComponent(
+      email
+    )}`;
     console.log(
       `New verification email sent to ${email} (previous token expired)`
     );

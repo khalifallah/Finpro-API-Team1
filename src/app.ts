@@ -18,6 +18,7 @@ import StockRoutes from "./routes/stock.route";
 import authRoutes from "./routes/auth.route";
 import orderRoutes from "./routes/order.route";
 import storeRoutes from "./routes/store.route";
+import homepageRoutes from "./routes/homepage.route";
 import cartRoute from "./routes/cart.route";
 import prisma from "./libs/prisma";
 import { OrderCleanupJob } from "./jobs/order-cleanup.job";
@@ -61,6 +62,7 @@ export default class App {
     apiRouter.use("/orders", orderRoutes);
     apiRouter.use("/stocks", StockRoutes);
     apiRouter.use("/stores", storeRoutes);
+    apiRouter.use("/homepage", homepageRoutes);
     apiRouter.use("/cart", cartRoute);
   }
 

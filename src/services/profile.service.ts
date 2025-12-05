@@ -285,18 +285,35 @@ export class ProfileService {
   // Request email verification - FIXED VERSION
   async requestEmailVerification(userId: number): Promise<void> {
     try {
-      console.log("Requesting email verification for user ID:", userId); // Debug log
-      // Validate userId
-      if (!userId || isNaN(userId)) {
-        throw new AppError("Invalid user ID", 400);
-      }
       const user = await prisma.user.findUnique({
         where: { id: userId },
+        include: {
+          socialAccounts: true,
+        },
       });
 
       if (!user) {
         throw new AppError("User not found", 404);
       }
+
+      // Check if user is a Google user
+      const isGoogleUser = user.socialAccounts.some(
+        (account) => account.provider === "google"
+      );
+
+      if (isGoogleUser) {
+        // For Google users, their email is already verified by Google
+        // Just update the emailVerifiedAt if not already set
+        if (!user.emailVerifiedAt) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { emailVerifiedAt: new Date() },
+          });
+        }
+        // Don't send verification email for Google users
+        return;
+      }
+
       if (user.emailVerifiedAt) {
         throw new AppError("Email is already verified", 400);
       }
@@ -307,10 +324,10 @@ export class ProfileService {
         type: "email_verification",
       });
 
-      console.log("Sending verification email to:", user.email); // Debug log
+      console.log("Sending verification email to:", user.email);
 
       await emailService.sendVerificationEmail(user.email, verificationToken);
-      console.log("Verification email sent successfully"); // Debug log
+      console.log("Verification email sent successfully");
     } catch (error) {
       if (error instanceof AppError) {
         throw error;

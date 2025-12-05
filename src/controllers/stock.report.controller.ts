@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import { getStockSummary, getStockDetail } from "../services/stock.report.service";
 import { responseBuilder } from "../utils/response.builder";
 import { stockReportSchema } from "../validations/report.validation";
-import AppError from "../errors/app.error";
 
 export const getStockSummaryController = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {

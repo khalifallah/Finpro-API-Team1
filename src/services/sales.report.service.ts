@@ -40,7 +40,6 @@ export const getMonthlySales = async (query: SalesReportQuery, userStoreId?: num
       }));
     }
   } catch (error) {
-    console.error("Error in getMonthlySales:", error);
     throw new AppError("Failed to fetch monthly sales", 500);
   }
 };
@@ -80,7 +79,6 @@ export const getSalesByCategory = async (query: SalesReportQuery, userStoreId?: 
       ...s, month, year, storeId: finalStoreId || null, // Null untuk super admin all
     }));
   } catch (error) {
-    console.error("Error in getSalesByCategory:", error);
     throw new AppError("Failed to fetch sales by category", 500);
   }
 };
@@ -122,7 +120,6 @@ export const getSalesByProduct = async (query: SalesReportQuery, userStoreId?: n
       ...s, month, year, storeId: finalStoreId || null,
     }));
   } catch (error) {
-    console.error("Error in getSalesByProduct:", error);
     throw new AppError("Failed to fetch sales by product", 500);
   }
 };

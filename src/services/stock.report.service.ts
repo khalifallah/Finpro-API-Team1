@@ -1,4 +1,3 @@
-// filepath: Finpro-API-Team1/src/services/stock.service.ts
 import prisma from "../libs/prisma";
 import { StockReportQuery, StockSummaryReport, StockDetailReport } from "../types/report.types";
 import AppError from "../errors/app.error";
@@ -57,13 +56,12 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
 
     return Object.values(grouped).map(s => ({
       ...s,
-      finalStock: stockMap[s.productId] || 0, // { added } - current quantity as final stock
+      finalStock: stockMap[s.productId] || 0, // current quantity as final stock
       month,
       year,
       storeId: finalStoreId || null,
     }));
   } catch (error) {
-    console.error("Error in getStockSummary:", error);
     throw new AppError("Failed to fetch stock summary", 500);
   }
 };
@@ -97,7 +95,6 @@ export const getStockDetail = async (query: StockReportQuery, userStoreId?: numb
       storeId: d.productStock.storeId,
     }));
   } catch (error) {
-    console.error("Error in getStockDetail:", error);
     throw new AppError("Failed to fetch stock detail", 500);
   }
 };

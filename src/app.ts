@@ -15,6 +15,7 @@ import adminRoutes from "./routes/admin.route";
 import productRoutes from "./routes/product.route";
 import categoryRoutes from "./routes/category.route";
 import StockRoutes from "./routes/stock.route";
+import discountRoutes from "./routes/discount.route";
 import authRoutes from "./routes/auth.route";
 import orderRoutes from "./routes/order.route";
 import storeRoutes from "./routes/store.route";
@@ -61,6 +62,7 @@ export default class App {
     apiRouter.use("/auth", authRoutes);
     apiRouter.use("/orders", orderRoutes);
     apiRouter.use("/stocks", StockRoutes);
+    apiRouter.use("/discounts", discountRoutes);
     apiRouter.use("/stores", storeRoutes);
     apiRouter.use("/homepage", homepageRoutes);
     apiRouter.use("/cart", cartRoute);

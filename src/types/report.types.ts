@@ -16,7 +16,7 @@ export interface MonthlySalesReport {
   year: number;
   totalSales: number;
   totalOrders: number;
-  storeId?: number;
+  storeId: number | null; // null untuk super admin all
 }
 
 export interface SalesByCategoryReport {
@@ -25,7 +25,7 @@ export interface SalesByCategoryReport {
   totalSales: number;
   month: number;
   year: number;
-  storeId?: number;
+  storeId: number | null; // null untuk super admin all
 }
 
 export interface SalesByProductReport {
@@ -35,7 +35,7 @@ export interface SalesByProductReport {
   totalQuantity: number;
   month: number;
   year: number;
-  storeId?: number;
+  storeId: number | null; // null untuk super admin all
 }
 
 export interface StockSummaryReport {
@@ -46,7 +46,7 @@ export interface StockSummaryReport {
   finalStock: number;
   month: number;
   year: number;
-  storeId?: number;
+  storeId: number | null; // null untuk super admin all
 }
 
 export interface StockDetailReport {

@@ -8,17 +8,13 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
     const { month, year, storeId } = query;
     const finalStoreId = storeId || userStoreId;
     
-    if (!finalStoreId) {
-      throw new AppError("Store ID is required", 400);
-    }
-
     const dateStart = new Date(year, month - 1, 1);
     const dateEnd = new Date(year, month, 1);
 
     const journals = await prisma.stockJournal.findMany({
       where: {
         createdAt: { gte: dateStart, lt: dateEnd },
-        productStock: { storeId: finalStoreId },
+        ...(finalStoreId ? { productStock: { storeId: finalStoreId } } : {}),
       },
       include: { productStock: { include: { product: true } } },
     });
@@ -42,9 +38,10 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
     }, {} as Record<number, any>);
 
     return Object.values(grouped).map(s => ({
-      ...s, month, year, storeId: finalStoreId,
+      ...s, month, year, storeId: finalStoreId || null,
     }));
   } catch (error) {
+    console.error("Error in getStockSummary:", error);
     throw new AppError("Failed to fetch stock summary", 500);
   }
 };
@@ -54,17 +51,14 @@ export const getStockDetail = async (query: StockReportQuery, userStoreId?: numb
     const { month, year, storeId, productId } = query;
     const finalStoreId = storeId || userStoreId;
     
-    if (!finalStoreId) {
-      throw new AppError("Store ID is required", 400);
-    }
-
     const dateStart = new Date(year, month - 1, 1);
     const dateEnd = new Date(year, month, 1);
 
     const details = await prisma.stockJournal.findMany({
       where: {
         createdAt: { gte: dateStart, lt: dateEnd },
-        productStock: { storeId: finalStoreId, ...(productId ? { productId } : {}) },
+        ...(finalStoreId ? { productStock: { storeId: finalStoreId } } : {}),
+        ...(productId ? { productStock: { productId } } : {}),
       },
       include: { productStock: { include: { product: true } } },
     });
@@ -81,6 +75,7 @@ export const getStockDetail = async (query: StockReportQuery, userStoreId?: numb
       storeId: d.productStock.storeId,
     }));
   } catch (error) {
+    console.error("Error in getStockDetail:", error);
     throw new AppError("Failed to fetch stock detail", 500);
   }
 };

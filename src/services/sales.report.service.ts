@@ -7,30 +7,38 @@ export const getMonthlySales = async (query: SalesReportQuery, userStoreId?: num
     const { month, year, storeId } = query;
     const finalStoreId = storeId || userStoreId;
     
-    if (!finalStoreId) {
-      throw new AppError("Store ID is required", 400);
-    }
-
     const dateStart = new Date(year, month - 1, 1);
     const dateEnd = new Date(year, month, 1);
 
     const orders = await prisma.order.findMany({
       where: {
         createdAt: { gte: dateStart, lt: dateEnd },
-        storeId: finalStoreId,
+        ...(finalStoreId ? { storeId: finalStoreId } : {}), // Filter by storeId jika ada, atau semua jika super admin
       },
     });
 
-    const totalSales = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-    const totalOrders = orders.length;
-
-    return [{
-      month,
-      year,
-      totalSales,
-      totalOrders,
-      storeId: finalStoreId,
-    }];
+    if (finalStoreId) {
+      // Store admin atau super admin filter by store
+      const totalSales = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+      const totalOrders = orders.length;
+      return [{
+        month, year, totalSales, totalOrders, storeId: finalStoreId,
+      }];
+    } else {
+      // Super admin: group by store
+      const grouped = orders.reduce((acc, order) => {
+        const key = order.storeId;
+        if (!acc[key]) {
+          acc[key] = { storeId: key, totalSales: 0, totalOrders: 0 };
+        }
+        acc[key].totalSales += order.totalAmount || 0;
+        acc[key].totalOrders += 1;
+        return acc;
+      }, {} as Record<number, any>);
+      return Object.values(grouped).map(s => ({
+        month, year, totalSales: s.totalSales, totalOrders: s.totalOrders, storeId: s.storeId,
+      }));
+    }
   } catch (error) {
     console.error("Error in getMonthlySales:", error);
     throw new AppError("Failed to fetch monthly sales", 500);
@@ -42,10 +50,6 @@ export const getSalesByCategory = async (query: SalesReportQuery, userStoreId?: 
     const { month, year, storeId } = query;
     const finalStoreId = storeId || userStoreId;
     
-    if (!finalStoreId) {
-      throw new AppError("Store ID is required", 400);
-    }
-
     const dateStart = new Date(year, month - 1, 1);
     const dateEnd = new Date(year, month, 1);
     
@@ -53,7 +57,7 @@ export const getSalesByCategory = async (query: SalesReportQuery, userStoreId?: 
       where: {
         order: {
           createdAt: { gte: dateStart, lt: dateEnd },
-          storeId: finalStoreId,
+          ...(finalStoreId ? { storeId: finalStoreId } : {}),
         },
       },
       include: { product: { include: { category: true } } },
@@ -73,10 +77,7 @@ export const getSalesByCategory = async (query: SalesReportQuery, userStoreId?: 
     }, {} as Record<number, any>);
 
     return Object.values(grouped).map(s => ({
-      ...s,
-      month,
-      year,
-      storeId: finalStoreId,
+      ...s, month, year, storeId: finalStoreId || null, // Null untuk super admin all
     }));
   } catch (error) {
     console.error("Error in getSalesByCategory:", error);
@@ -89,10 +90,6 @@ export const getSalesByProduct = async (query: SalesReportQuery, userStoreId?: n
     const { month, year, storeId } = query;
     const finalStoreId = storeId || userStoreId;
     
-    if (!finalStoreId) {
-      throw new AppError("Store ID is required", 400);
-    }
-
     const dateStart = new Date(year, month - 1, 1);
     const dateEnd = new Date(year, month, 1);
 
@@ -100,7 +97,7 @@ export const getSalesByProduct = async (query: SalesReportQuery, userStoreId?: n
       where: {
         order: {
           createdAt: { gte: dateStart, lt: dateEnd },
-          storeId: finalStoreId,
+          ...(finalStoreId ? { storeId: finalStoreId } : {}),
         },
       },
       include: { product: true },
@@ -122,10 +119,7 @@ export const getSalesByProduct = async (query: SalesReportQuery, userStoreId?: n
     }, {} as Record<number, any>);
 
     return Object.values(grouped).map(s => ({
-      ...s,
-      month,
-      year,
-      storeId: finalStoreId,
+      ...s, month, year, storeId: finalStoreId || null,
     }));
   } catch (error) {
     console.error("Error in getSalesByProduct:", error);

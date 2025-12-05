@@ -312,7 +312,7 @@ export class OrderCreationService {
         await tx.productStock.update({
           where: { id: productStock.id },
           data: {
-            quantity: productStock.quantity - cartItem.quantity,
+            quantity: { decrement: cartItem.quantity },
           },
         });
 

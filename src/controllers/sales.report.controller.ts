@@ -1,10 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import { getMonthlySales, getSalesByCategory, getSalesByProduct } from "../services/sales.report.service";
 import { responseBuilder } from "../utils/response.builder";
+import { salesReportSchema } from "../validations/report.validation";
+import AppError from "../errors/app.error";
 
 export const getMonthlySalesController = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const query = req.query as any;
+    const query = await salesReportSchema.validate(req.query, { abortEarly: false });
     const userStoreId = req.user?.storeId as number | undefined;
     const report = await getMonthlySales(query, userStoreId);
     res.status(200).json(responseBuilder(200, "Monthly sales report retrieved successfully", { data: report }));
@@ -15,7 +17,7 @@ export const getMonthlySalesController = async (req: Request, res: Response, nex
 
 export const getSalesByCategoryController = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const query = req.query as any;
+    const query = await salesReportSchema.validate(req.query, { abortEarly: false });
     const userStoreId = req.user?.storeId as number | undefined;
     const report = await getSalesByCategory(query, userStoreId);
     res.status(200).json(responseBuilder(200, "Sales by category report retrieved successfully", { data: report }));
@@ -26,7 +28,7 @@ export const getSalesByCategoryController = async (req: Request, res: Response, 
 
 export const getSalesByProductController = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const query = req.query as any;
+    const query = await salesReportSchema.validate(req.query, { abortEarly: false });
     const userStoreId = req.user?.storeId as number | undefined;
     const report = await getSalesByProduct(query, userStoreId);
     res.status(200).json(responseBuilder(200, "Sales by product report retrieved successfully", { data: report }));

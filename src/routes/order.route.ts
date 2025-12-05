@@ -18,6 +18,7 @@ import {
   calculateShippingSchema,
   validateCheckoutSchema,
 } from "../validations/shipping.validation";
+import { uploadPaymentProof } from "../middlewares/upload.middleware";
 
 const router = Router();
 
@@ -75,6 +76,19 @@ router.post(
   requireVerifiedUser,
   canPlaceOrders,
   OrderController.createOrder
+);
+
+router.post(
+  "/:orderId/payment-proof",
+  requireVerifiedUser,
+  uploadPaymentProof,
+  OrderController.uploadPaymentProof
+);
+
+router.post(
+  "/:orderId/confirm",
+  requireVerifiedUser,
+  OrderController.confirmOrderReceived
 );
 
 router.post(

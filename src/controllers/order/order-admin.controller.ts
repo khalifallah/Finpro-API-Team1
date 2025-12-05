@@ -4,12 +4,15 @@ import AppError from "../../errors/app.error";
 import { responseBuilder } from "../../utils/response.builder";
 import { OrderCancellationService } from "../../services/order/order-cancellation.service";
 import { OrderStatus, PaymentStatus } from "../../generated/prisma-client";
+import { EmailService } from "../../services/email.service";
 
 export class OrderAdminController {
   private ordercancellationService: OrderCancellationService;
+  private emailService: EmailService;
 
   constructor() {
     this.ordercancellationService = new OrderCancellationService();
+    this.emailService = new EmailService();
   }
 
   async getAllOrders(
@@ -119,6 +122,7 @@ export class OrderAdminController {
         include: {
           store: true,
           payment: true,
+          user: true,
         },
       });
 
@@ -139,6 +143,10 @@ export class OrderAdminController {
           userId: order.userId,
           reason: adminNotes || "Cancelled by admin",
         });
+
+        this.sendNotificationEmail(order, OrderStatus.CANCELLED).catch(
+          console.error
+        );
 
         res
           .status(200)
@@ -174,6 +182,10 @@ export class OrderAdminController {
         });
       });
 
+      this.sendNotificationEmail(order, status).catch((err) => {
+        console.error("Failed to send order status email:", err);
+      });
+
       res.status(200).json(
         responseBuilder(200, "Order status updated successfully", {
           order: updatedOrder,
@@ -182,5 +194,58 @@ export class OrderAdminController {
     } catch (error) {
       next(error);
     }
+  }
+
+  // Helper yang kita bahas sebelumnya
+  private async sendNotificationEmail(order: any, newStatus: string) {
+    const userEmail = order.user.email;
+    const userName = order.user.fullName;
+    let subject = "";
+    let message = "";
+    let displayStatus = "";
+
+    switch (newStatus) {
+      case OrderStatus.PROCESSING:
+        subject = "Pembayaran Diterima";
+        message =
+          "Terima kasih! Pembayaran Anda telah kami terima. Tim kami sedang menyiapkan pesanan Anda.";
+        displayStatus = "Diproses";
+        break;
+
+      case OrderStatus.PENDING_PAYMENT: // Rejected
+        subject = "Bukti Pembayaran Ditolak";
+        message =
+          "Mohon maaf, bukti pembayaran Anda tidak dapat kami verifikasi. Silakan upload ulang bukti yang jelas.";
+        displayStatus = "Menunggu Pembayaran Ulang";
+        break;
+
+      case OrderStatus.SHIPPED:
+        subject = "Pesanan Dikirim";
+        message =
+          "Kabar baik! Pesanan Anda sudah diserahkan ke kurir pengiriman.";
+        displayStatus = "Sedang Dikirim";
+        break;
+
+      case OrderStatus.CANCELLED:
+        subject = "Pesanan Dibatalkan";
+        message =
+          "Mohon maaf, pesanan Anda telah dibatalkan. Jika Anda sudah melakukan pembayaran, dana akan kami proses untuk pengembalian (refund).";
+        displayStatus = "Dibatalkan";
+        break;
+
+      default:
+        return;
+    }
+
+    // Panggil Service yang baru kita update
+    await this.emailService.sendOrderStatusEmail(
+      userEmail,
+      userName,
+      order.id,
+      order.totalAmount,
+      displayStatus, // Status yang enak dibaca user
+      subject,
+      message
+    );
   }
 }

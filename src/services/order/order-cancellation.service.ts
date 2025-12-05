@@ -26,7 +26,10 @@ export class OrderCancellationService {
       throw new AppError("Order not found", 404);
     }
 
-    if (order.status !== OrderStatus.PENDING_PAYMENT) {
+    if (
+      order.status !== OrderStatus.PENDING_PAYMENT &&
+      order.status !== OrderStatus.PENDING_CONFIRMATION
+    ) {
       throw new AppError(
         "Order can only be cancelled before payment is made",
         400

@@ -5,6 +5,7 @@ import { adminAuth } from "../middlewares/admin.auth.middleware";
 
 const router = Router();
 
+// Middleware auth harus di awal
 router.use(adminAuth);
 
 // Sales Reports

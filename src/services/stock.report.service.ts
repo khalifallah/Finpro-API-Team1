@@ -7,13 +7,18 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
   try {
     const { month, year, storeId } = query;
     const finalStoreId = storeId || userStoreId;
+    
+    if (!finalStoreId) {
+      throw new AppError("Store ID is required", 400);
+    }
+
     const dateStart = new Date(year, month - 1, 1);
     const dateEnd = new Date(year, month, 1);
 
     const journals = await prisma.stockJournal.findMany({
       where: {
         createdAt: { gte: dateStart, lt: dateEnd },
-        ...(finalStoreId ? { productStock: { storeId: finalStoreId } } : {}),
+        productStock: { storeId: finalStoreId },
       },
       include: { productStock: { include: { product: true } } },
     });
@@ -48,14 +53,18 @@ export const getStockDetail = async (query: StockReportQuery, userStoreId?: numb
   try {
     const { month, year, storeId, productId } = query;
     const finalStoreId = storeId || userStoreId;
+    
+    if (!finalStoreId) {
+      throw new AppError("Store ID is required", 400);
+    }
+
     const dateStart = new Date(year, month - 1, 1);
     const dateEnd = new Date(year, month, 1);
 
     const details = await prisma.stockJournal.findMany({
       where: {
         createdAt: { gte: dateStart, lt: dateEnd },
-        ...(finalStoreId ? { productStock: { storeId: finalStoreId } } : {}),
-        ...(productId ? { productStock: { productId } } : {}),
+        productStock: { storeId: finalStoreId, ...(productId ? { productId } : {}) },
       },
       include: { productStock: { include: { product: true } } },
     });

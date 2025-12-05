@@ -7,7 +7,13 @@ import AppError from "../errors/app.error";
 export const getMonthlySalesController = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const query = await salesReportSchema.validate(req.query, { abortEarly: false });
-    const userStoreId = req.user?.storeId as number | undefined;
+    const userStoreId = req.jwtPayload?.storeId as number | undefined;
+    
+    // DEBUG
+    console.log("[DEBUG] Query:", query);
+    console.log("[DEBUG] req.jwtPayload:", req.jwtPayload);
+    console.log("[DEBUG] userStoreId:", userStoreId);
+    
     const report = await getMonthlySales(query, userStoreId);
     res.status(200).json(responseBuilder(200, "Monthly sales report retrieved successfully", { data: report }));
   } catch (error) {
@@ -18,7 +24,7 @@ export const getMonthlySalesController = async (req: Request, res: Response, nex
 export const getSalesByCategoryController = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const query = await salesReportSchema.validate(req.query, { abortEarly: false });
-    const userStoreId = req.user?.storeId as number | undefined;
+    const userStoreId = req.jwtPayload?.storeId as number | undefined;
     const report = await getSalesByCategory(query, userStoreId);
     res.status(200).json(responseBuilder(200, "Sales by category report retrieved successfully", { data: report }));
   } catch (error) {
@@ -29,7 +35,7 @@ export const getSalesByCategoryController = async (req: Request, res: Response, 
 export const getSalesByProductController = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const query = await salesReportSchema.validate(req.query, { abortEarly: false });
-    const userStoreId = req.user?.storeId as number | undefined;
+    const userStoreId = req.jwtPayload?.storeId as number | undefined;
     const report = await getSalesByProduct(query, userStoreId);
     res.status(200).json(responseBuilder(200, "Sales by product report retrieved successfully", { data: report }));
   } catch (error) {

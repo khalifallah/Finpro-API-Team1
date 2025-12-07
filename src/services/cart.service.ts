@@ -69,45 +69,32 @@ export class CartService {
         }
 
         // 4. Cek apakah item sudah ada di cart (termasuk yang soft deleted)
-        const existingCartItem = await tx.cartItem.findUnique({
+        const existingCartItem = await tx.cartItem.findFirst({
           where: {
-            cartId_productId: {
-              cartId: cart.id,
-              productId: data.productId,
-            },
+            cartId: cart.id,
+            productId: data.productId,
           },
         });
 
         let cartItem;
+
         if (existingCartItem) {
-          // --- LOGIKA UPDATE / RESTORE ---
+          // Update existing item (including restoring if soft-deleted)
+          const newQuantity = existingCartItem.quantity + data.quantity;
 
-          let newQuantity;
-
-          if (existingCartItem.deletedAt) {
-            // KASUS A: Item dulunya sudah dihapus (Soft Delete)
-            // Kita anggap ini barang baru masuk. Abaikan jumlah lama yang sudah dibuang.
-            newQuantity = data.quantity;
-          } else {
-            // KASUS B: Item masih aktif di keranjang.
-            // Kita tambahkan jumlah baru ke jumlah lama.
-            newQuantity = existingCartItem.quantity + data.quantity;
-          }
-
-          // Validasi stok lagi dengan quantity baru
+          // Check stock again with new quantity
           if (productStock.quantity < newQuantity) {
             throw new AppError(
-              `Cannot add items. Total ${newQuantity} exceeds available stock (${productStock.quantity}).`,
+              `Cannot add more items. Total ${newQuantity} exceeds available stock (${productStock.quantity}).`,
               400
             );
           }
 
-          // Lakukan Update (Sekaligus Restore jika deletedAt ada isinya)
           cartItem = await tx.cartItem.update({
             where: { id: existingCartItem.id },
             data: {
               quantity: newQuantity,
-              deletedAt: null, // <--- PENTING: Hapus status deleted (Restore)
+              deletedAt: null, // Add this line to restore soft-deleted items
             },
             include: {
               product: {
@@ -121,7 +108,7 @@ export class CartService {
             },
           });
         } else {
-          // --- LOGIKA INSERT BARU ---
+          // Create new cart item
           cartItem = await tx.cartItem.create({
             data: {
               cartId: cart.id,
@@ -144,10 +131,9 @@ export class CartService {
         return {
           cartItem,
           cartId: cart.id,
-          message:
-            existingCartItem && !existingCartItem.deletedAt
-              ? "Cart item updated"
-              : "Item added to cart",
+          message: existingCartItem
+            ? "Cart item updated"
+            : "Item added to cart",
         };
       });
     } catch (error) {
@@ -155,7 +141,12 @@ export class CartService {
         throw error;
       }
       console.error("Add to cart error:", error);
-      throw new AppError("Failed to add item to cart", 500);
+      // Log the actual error for debugging
+      console.error("Full error details:", {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      throw new AppError("Failed to add item to cart. Please try again.", 500);
     }
   }
 
@@ -166,7 +157,9 @@ export class CartService {
         where: { userId },
         include: {
           cartItems: {
-            where: { deletedAt: null },
+            where: {
+              deletedAt: null, // Only get non-deleted items
+            },
             include: {
               product: {
                 include: {
@@ -178,6 +171,7 @@ export class CartService {
                   productStocks: {
                     where: {
                       storeId: storeId,
+                      deletedAt: null, // Add this filter
                     },
                   },
                 },
@@ -253,12 +247,14 @@ export class CartService {
         throw new AppError("Quantity must be greater than 0", 400);
       }
 
-      // Cari cart item dan validasi ownership
+      // First, check if cart item exists and belongs to user (including soft-deleted)
       const cartItem = await prisma.cartItem.findFirst({
         where: {
           id: cartItemId,
-          cart: { userId },
-          deletedAt: null,
+          cart: {
+            userId,
+            deletedAt: null,
+          },
         },
         include: {
           product: true,
@@ -270,27 +266,43 @@ export class CartService {
         throw new AppError("Cart item not found", 404);
       }
 
-      // Cek stok
-      const storeId = 1; // Default store
-      const productStock = await prisma.productStock.findFirst({
-        where: {
-          productId: cartItem.productId,
-          storeId,
-          deletedAt: null,
-        },
-      });
+      // If item is soft-deleted, restore it first
+      if (cartItem.deletedAt) {
+        await prisma.cartItem.update({
+          where: { id: cartItemId },
+          data: {
+            deletedAt: null,
+            quantity: quantity, // Set to new quantity
+          },
+        });
+      } else {
+        // Check stock (only if not soft-deleted)
+        const storeId = 1; // Default store
+        const productStock = await prisma.productStock.findFirst({
+          where: {
+            productId: cartItem.productId,
+            storeId,
+            deletedAt: null,
+          },
+        });
 
-      if (!productStock || productStock.quantity < quantity) {
-        throw new AppError(
-          `Insufficient stock. Available: ${productStock?.quantity || 0}`,
-          400
-        );
+        if (!productStock || productStock.quantity < quantity) {
+          throw new AppError(
+            `Insufficient stock. Available: ${productStock?.quantity || 0}`,
+            400
+          );
+        }
+
+        // Update quantity
+        await prisma.cartItem.update({
+          where: { id: cartItemId },
+          data: { quantity },
+        });
       }
 
-      // Update quantity
-      const updatedCartItem = await prisma.cartItem.update({
+      // Return updated cart item
+      const updatedCartItem = await prisma.cartItem.findUnique({
         where: { id: cartItemId },
-        data: { quantity },
         include: {
           product: {
             include: {
@@ -305,7 +317,9 @@ export class CartService {
 
       return {
         cartItem: updatedCartItem,
-        message: "Cart item updated successfully",
+        message: cartItem.deletedAt
+          ? "Cart item restored and updated"
+          : "Cart item updated successfully",
       };
     } catch (error) {
       if (error instanceof AppError) {

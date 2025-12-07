@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { CartService } from "../services/cart.service";
 import AppError from "../errors/app.error";
 import { responseBuilder } from "../utils/response.builder";
+import prisma from "../libs/prisma";
 
 const cartService = new CartService();
 
@@ -37,22 +38,22 @@ export class CartController {
       const userId = getUserId(req);
       const { productId, quantity, storeId } = req.body;
 
-      if (!productId || !quantity || !storeId) {
-        throw new AppError(
-          "Product ID, quantity, and storeId are required",
-          400
-        );
+      if (!productId || !quantity) {
+        throw new AppError("Product ID and quantity are required", 400);
       }
 
       if (quantity <= 0) {
         throw new AppError("Quantity must be greater than 0", 400);
       }
 
+      // Default to store 1 if not provided
+      const targetStoreId = storeId || 1;
+
       const result = await cartService.addToCart({
         userId,
         productId,
         quantity,
-        storeId,
+        storeId: targetStoreId,
       });
 
       res.status(201).json(
@@ -62,6 +63,7 @@ export class CartController {
         })
       );
     } catch (error) {
+      console.error("Add to cart controller error:", error);
       next(error);
     }
   }
@@ -178,6 +180,46 @@ export class CartController {
           summary,
         })
       );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // a refreshCart method
+  static async refreshCart(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = getUserId(req);
+
+      // Ensure cart exists
+      let cart = await prisma.cart.findUnique({
+        where: { userId },
+      });
+
+      if (!cart) {
+        cart = await prisma.cart.create({
+          data: { userId },
+        });
+      }
+
+      // Remove any permanently deleted items if needed
+      await prisma.cartItem.deleteMany({
+        where: {
+          cartId: cart.id,
+          deletedAt: { not: null },
+        },
+      });
+
+      res
+        .status(200)
+        .json(
+          responseBuilder(200, "Cart refreshed successfully", {
+            cartId: cart.id,
+          })
+        );
     } catch (error) {
       next(error);
     }

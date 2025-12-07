@@ -103,7 +103,7 @@ export class OrderCreationService {
         order.id
       );
 
-      await this.clearCart(tx, cart.id);
+      await this.clearCart(tx, cart.id, cart.cartItems); // Pass only cart items from the cart
 
       if (userVoucherId) {
         await this.markVoucherAsUsed(tx, userVoucherId);
@@ -125,6 +125,9 @@ export class OrderCreationService {
       },
       include: {
         cartItems: {
+          where: {
+            deletedAt: null, // CRITICAL: Only include non-deleted items
+          },
           include: {
             product: {
               include: {
@@ -328,9 +331,20 @@ export class OrderCreationService {
     }
   }
 
-  private async clearCart(tx: any, cartId: number) {
-    await tx.cartItem.deleteMany({
-      where: { cartId },
+  private async clearCart(tx: any, cartId: number, processedItems: any[]) {
+    // Get IDs of items that were actually processed
+    const processedItemIds = processedItems.map((item) => item.id);
+
+    // Only delete the items that were in the order
+    await tx.cartItem.updateMany({
+      where: {
+        cartId: cartId,
+        id: { in: processedItemIds },
+        deletedAt: null, // Only delete active items
+      },
+      data: {
+        deletedAt: new Date(),
+      },
     });
   }
 

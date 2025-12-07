@@ -98,6 +98,9 @@ export class OrderUserQueryController {
         },
         include: {
           orderItems: {
+            where: {
+              deletedAt: null, // Only show non-deleted order items
+            },
             include: {
               product: {
                 include: {

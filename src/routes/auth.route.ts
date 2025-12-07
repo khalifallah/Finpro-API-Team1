@@ -137,43 +137,45 @@ router.delete(
 );
 
 // ==================== ADDRESS MANAGEMENT ROUTES ====================
+const addressController = new AddressController();
+
 // Get all user addresses
 router.get(
   "/profile/addresses",
   requireVerifiedUser,
-  AddressController.getUserAddresses.bind(AddressController)
+  addressController.getUserAddresses.bind(addressController)
 );
 // Get specific address
 router.get(
   "/profile/addresses/:addressId",
   requireVerifiedUser,
-  AddressController.getAddressById.bind(AddressController)
+  addressController.getAddressById.bind(addressController)
 );
-// Create new address
 router.post(
   "/profile/address",
   validateRequest(createAddressSchema),
   requireVerifiedUser,
-  AddressController.createAddress.bind(AddressController)
+  addressController.createAddress.bind(addressController)
 );
+
 // Update address
 router.patch(
   "/profile/addresses/:addressId",
   validateRequest(updateAddressSchema),
   requireVerifiedUser,
-  AddressController.updateAddress.bind(AddressController)
+  addressController.updateAddress.bind(addressController)
 );
 // Delete address
 router.delete(
   "/profile/addresses/:addressId",
   requireVerifiedUser,
-  AddressController.deleteAddress.bind(AddressController)
+  addressController.deleteAddress.bind(addressController)
 );
 // Set address as main
 router.patch(
   "/profile/addresses/:addressId/set-main",
   requireVerifiedUser,
-  AddressController.setMainAddress.bind(AddressController)
+  addressController.setMainAddress.bind(addressController)
 );
 
 // Password management (for logged-in users)

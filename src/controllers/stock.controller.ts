@@ -1,4 +1,4 @@
-import e, { Request, Response } from "express";
+import { Request, Response } from "express";
 import * as stockService from "../services/stock.service";
 import { StockQuery } from "../types/stock.types";
 import { stockSchema, updateStockSchema } from "../validations/stock.validation";
@@ -17,6 +17,19 @@ export const getStocks = async (req: Request, res: Response) => {
     try {
         const query = parseStockQuery(req.query);
         const userStoreId = req.jwtPayload?.storeId;
+        const userRole = req.jwtPayload?.role;
+
+        // PATCH: Store Admin cannot override their store filter
+        if (userRole === 'STORE_ADMIN' && userStoreId) {
+            if (query.storeId && query.storeId !== userStoreId) {
+                return res.status(403).json({
+                    error: "Store Admin can only view stocks from their own store"
+                });
+            }
+            // Force filter to their store
+            query.storeId = userStoreId;
+        }
+
         const result = await stockService.getStocks(query, userStoreId);
         res.json(result);
     } catch (err) {
@@ -26,37 +39,107 @@ export const getStocks = async (req: Request, res: Response) => {
 
 export const getStockById = async (req: Request, res: Response) => {
     try {
-        const result = await stockService.getStockById(parseInt(req.params.id))
-        if (!result) {
-            return res.status(404).json({ error: "Stock not found" }); 
-        }
-        res.json(result);
+        const stockId = parseInt(req.params.id);
 
+        if (isNaN(stockId)) {
+            return res.status(400).json({ error: "Invalid stock ID" });
+        }
+
+        const result = await stockService.getStockById(stockId);
+        if (!result) {
+            return res.status(404).json({ error: "Stock not found" });
+        }
+
+        // PATCH: Store Admin can only view own store stock
+        const userStoreId = req.jwtPayload?.storeId;
+        const userRole = req.jwtPayload?.role;
+
+        if (userRole === 'STORE_ADMIN' && userStoreId && result.storeId !== userStoreId) {
+            return res.status(403).json({
+                error: "Store Admin can only view stock from their own store"
+            });
+        }
+
+        res.json(result);
     } catch (err) {
-        res.status(500).json({error: "Failed to fetch stock" });
+        res.status(500).json({ error: "Failed to fetch stock" });
     }
 };
 
+// PATCHED: Allow all admins to create stock with store validation
 export const createStock = async (req: Request, res: Response) => {
     try {
-        await stockSchema.validate(req.body);
-        const stock = await stockService.createStock(req.body);
+        const userRole = req.jwtPayload?.role;
+        const userStoreId = req.jwtPayload?.storeId;
+        let stockData = { ...req.body };
+
+        if (userRole === 'STORE_ADMIN') {
+            if (!userStoreId) {
+                return res.status(403).json({ error: "Store Admin must be assigned to a store" });
+            }
+            if (stockData.storeId && stockData.storeId !== userStoreId) {
+                return res.status(403).json({ error: "Store Admin can only create stock for their own store" });
+            }
+            stockData.storeId = userStoreId;
+        }
+
+        if (userRole === 'SUPER_ADMIN' && !stockData.storeId) {
+            return res.status(400).json({ error: "Super Admin must specify a store for the stock" });
+        }
+
+        await stockSchema.validate(stockData);
+        const stock = await stockService.createStock(stockData);
         res.status(201).json(stock);
     } catch (err: any) {
+        // Better error handling for unique constraint
+        if (err.message.includes('Unique constraint') || err.code === 'P2002') {
+            return res.status(400).json({
+                error: "Stock for this product already exists in this store. Please update the existing stock instead."
+            });
+        }
         res.status(400).json({ error: err.message || "Failed to create stock" });
     }
 };
 
+// PATCHED: Add store validation for Store Admin
 export const updateStock = async (req: Request, res: Response) => {
     try {
         await updateStockSchema.validate(req.body);
+
+        const stockId = parseInt(req.params.id);
+
+        if (isNaN(stockId)) {
+            return res.status(400).json({ error: "Invalid stock ID" });
+        }
+
+        // Get existing stock to check store ownership
+        const existingStock = await stockService.getStockById(stockId);
+        if (!existingStock) {
+            return res.status(404).json({ error: "Stock not found" });
+        }
+
+        // Store Admin can only update stock from their own store
+        const userStoreId = req.jwtPayload?.storeId;
+        const userRole = req.jwtPayload?.role;
+
+        if (userRole === 'STORE_ADMIN' && userStoreId && existingStock.storeId !== userStoreId) {
+            return res.status(403).json({
+                error: "Store Admin can only update stock from their own store"
+            });
+        }
+
+        // Store Admin cannot change storeId
+        if (userRole === 'STORE_ADMIN' && req.body.storeId && req.body.storeId !== userStoreId) {
+            return res.status(403).json({
+                error: "Store Admin cannot change store assignment"
+            });
+        }
+
         const adminId = req.jwtPayload!.id;
         const reason = req.body.reason || "Manual Stock Update";
-        const stock = await stockService.updateStock(parseInt(req.params.id), req.body, adminId, reason);
+        const stock = await stockService.updateStock(stockId, req.body, adminId, reason);
         res.json(stock);
     } catch (err: any) {
-        
-        // Return 410 Gone jika stock sudah dihapus
         if (err.message.includes("deleted")) {
             return res.status(410).json({ error: err.message });
         }
@@ -77,13 +160,18 @@ export const deleteStock = async (req: Request, res: Response) => {
             return res.status(404).json({ error: "Stock not found" });
         }
 
+        // Store Admin can only delete stock from their own store
         const userStoreId = req.jwtPayload?.storeId;
-        if (userStoreId && stock.storeId !== userStoreId) {
-            return res.status(403).json({ error: "Unauthorized: Cannot delete stock from another store" });
+        const userRole = req.jwtPayload?.role;
+
+        if (userRole === 'STORE_ADMIN' && userStoreId && stock.storeId !== userStoreId) {
+            return res.status(403).json({
+                error: "Store Admin can only delete stock from their own store"
+            });
         }
 
         const adminId = req.jwtPayload!.id;
-        await stockService.deleteStock(stockId, adminId); // Pass adminId
+        await stockService.deleteStock(stockId, adminId);
 
         res.status(204).send();
     } catch (err: any) {
@@ -99,6 +187,18 @@ export const restoreStock = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "Invalid stock ID" });
         }
 
+        const existingStock = await stockService.getStockById(stockId);
+
+        // Store Admin can only restore stock from their own store
+        const userStoreId = req.jwtPayload?.storeId;
+        const userRole = req.jwtPayload?.role;
+
+        if (userRole === 'STORE_ADMIN' && userStoreId && existingStock && existingStock.storeId !== userStoreId) {
+            return res.status(403).json({
+                error: "Store Admin can only restore stock from their own store"
+            });
+        }
+
         const adminId = req.jwtPayload!.id;
         const stock = await stockService.restoreStock(stockId, adminId);
         res.json(stock);
@@ -112,7 +212,30 @@ export const restoreStock = async (req: Request, res: Response) => {
 
 export const getStockJournals = async (req: Request, res: Response) => {
     try {
-        const journals = await stockService.getStockJournals(parseInt(req.params.id));
+        const stockId = parseInt(req.params.id);
+
+        if (isNaN(stockId)) {
+            return res.status(400).json({ error: "Invalid stock ID" });
+        }
+
+        // Get stock first to check store ownership
+        const stock = await stockService.getStockById(stockId);
+        if (!stock) {
+            return res.status(404).json({ error: "Stock not found" });
+        }
+
+        // Store Admin can only view journals from their own store
+        const userStoreId = req.jwtPayload?.storeId;
+        const userRole = req.jwtPayload?.role;
+
+        if (userRole === 'STORE_ADMIN' && userStoreId && stock.storeId !== userStoreId) {
+            return res.status(403).json({
+                error: "Store Admin can only view stock journals from their own store"
+            });
+        }
+
+        // Now get journals
+        const journals = await stockService.getStockJournals(stockId);
         res.json(journals);
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch stock journals" });

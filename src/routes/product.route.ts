@@ -6,17 +6,19 @@ import { confirmDelete } from "../middlewares/confirm.delete.middleware";
 
 const router = Router();
 
-// Public: Catalog, Search, Details
+// PUBLIC: Catalog & Search (no auth required)
 router.get("/", productController.getProducts);
 
-// SUPER_ADMIN: Restore & GET Soft-Deleted Product (MUST be BEFORE /:id route)
-router.use(adminAuth);
-router.get("/deleted", superAdminAuth, productController.getDeletedProducts);
-
-// Public: Details by ID (AFTER /deleted to avoid conflict)
+// PUBLIC: Details by ID (no auth required)
 router.get("/:id", productController.getProductById);
 
-// SUPER_ADMIN: CRUD Operations
+// ADMIN ONLY: Everything else
+router.use(adminAuth);
+
+// SUPER ADMIN: Restore & View Deleted
+router.get("/deleted", superAdminAuth, productController.getDeletedProducts);
+
+// SUPER ADMIN: CRUD Operations
 router.post("/", superAdminAuth, uploadImages, productController.createProduct);
 router.put("/:id", superAdminAuth, productController.updateProduct);
 router.delete("/:id", superAdminAuth, confirmDelete, productController.deleteProduct);

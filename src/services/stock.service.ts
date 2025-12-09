@@ -56,25 +56,66 @@ export const createStock = async (data: CreateStockRequest): Promise<StockRespon
 };
 
 // Update stock: Create journal entry and update quantity
-export const updateStock = async (id: number, data: UpdateStockRequest, adminId: number, reason: string): Promise<StockResponse> => {
+// Refactor: Handle both quantityChange (from journal) and direct quantity update
+export const updateStock = async (
+    id: number,
+    data: UpdateStockRequest | { quantityChange?: number; reason?: string },
+    adminId: number,
+    reason?: string
+): Promise<StockResponse> => {
     const existingStock = await prisma.productStock.findUnique({ where: { id } });
-    
+
     if (!existingStock) throw new Error("Stock not found");
-    
+
     if (existingStock.deletedAt !== null) {
         throw new Error("Cannot update deleted stock");
     }
 
-    const quantityChange = data.quantity - existingStock.quantity;
+    // ✅ FIX: Handle both input formats
+    let newQuantity: number;
+    let finalReason: string;
+
+    // Format 1: { quantityChange, reason } - from journal update
+    if ('quantityChange' in data && data.quantityChange !== undefined) {
+        const quantityChange = data.quantityChange;
+        newQuantity = existingStock.quantity + quantityChange;
+        finalReason = data.reason || reason || "Manual Stock Update";
+
+        // Validate new quantity
+        if (newQuantity < 0) {
+            throw new Error("Quantity must be a non-negative integer");
+        }
+    }
+    // Format 2: { quantity } - direct update
+    else if ('quantity' in data && data.quantity !== undefined) {
+        newQuantity = data.quantity;
+        finalReason = reason || "Manual Stock Update";
+
+        if (newQuantity < 0) {
+            throw new Error("Quantity must be a non-negative integer");
+        }
+    } else {
+        throw new Error("Invalid update data");
+    }
+
+    // Create journal entry
+    const quantityChange = newQuantity - existingStock.quantity;
     await prisma.stockJournal.create({
-        data: { productStockId: id, adminId, quantityChange, reason }
+        data: {
+            productStockId: id,
+            adminId,
+            quantityChange,
+            reason: finalReason,
+        },
     });
 
+    // Update stock quantity
     const updatedStock = await prisma.productStock.update({
         where: { id },
-        data: { quantity: data.quantity },
-        include: { product: true, store: true }
+        data: { quantity: newQuantity },
+        include: { product: true, store: true },
     });
+
     return transformStockToResponse(updatedStock);
 };
 

@@ -104,12 +104,23 @@ export const createStock = async (req: Request, res: Response) => {
 // PATCHED: Add store validation for Store Admin
 export const updateStock = async (req: Request, res: Response) => {
     try {
-        await updateStockSchema.validate(req.body);
-
         const stockId = parseInt(req.params.id);
 
         if (isNaN(stockId)) {
             return res.status(400).json({ error: "Invalid stock ID" });
+        }
+
+        // ✅ FIX: Better validation message
+        const { quantityChange, reason, quantity } = req.body;
+
+        if (quantityChange === undefined && quantity === undefined) {
+            return res.status(400).json({
+                error: "Please provide either 'quantityChange' or 'quantity'",
+            });
+        }
+
+        if (reason && typeof reason !== 'string') {
+            return res.status(400).json({ error: "Reason must be a string" });
         }
 
         // Get existing stock to check store ownership
@@ -124,25 +135,40 @@ export const updateStock = async (req: Request, res: Response) => {
 
         if (userRole === 'STORE_ADMIN' && userStoreId && existingStock.storeId !== userStoreId) {
             return res.status(403).json({
-                error: "Store Admin can only update stock from their own store"
+                error: "Store Admin can only update stock from their own store",
             });
         }
 
         // Store Admin cannot change storeId
-        if (userRole === 'STORE_ADMIN' && req.body.storeId && req.body.storeId !== userStoreId) {
+        if (userRole === 'STORE_ADMIN' && quantity !== undefined && req.body.storeId && req.body.storeId !== userStoreId) {
             return res.status(403).json({
-                error: "Store Admin cannot change store assignment"
+                error: "Store Admin cannot change store assignment",
             });
         }
 
         const adminId = req.jwtPayload!.id;
-        const reason = req.body.reason || "Manual Stock Update";
-        const stock = await stockService.updateStock(stockId, req.body, adminId, reason);
+        const finalReason = reason || "Manual Stock Update";
+        
+        // ✅ FIX: Pass correct payload
+        const stock = await stockService.updateStock(
+            stockId,
+            { quantityChange, quantity, reason: finalReason },
+            adminId,
+            finalReason
+        );
+        
         res.json(stock);
     } catch (err: any) {
+        console.error('Update stock error:', err);
+        
         if (err.message.includes("deleted")) {
             return res.status(410).json({ error: err.message });
         }
+        
+        if (err.message.includes("non-negative")) {
+            return res.status(400).json({ error: err.message });
+        }
+        
         res.status(400).json({ error: err.message || "Failed to update stock" });
     }
 };

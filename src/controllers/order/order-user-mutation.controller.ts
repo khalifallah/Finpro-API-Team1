@@ -29,7 +29,14 @@ export class OrderUserMutationController {
         throw new AppError("User not authenticated", 401);
       }
 
-      const { userAddressId, shippingMethod, voucherCode, notes } = req.body;
+      const {
+        userAddressId,
+        shippingMethod,
+        voucherCode,
+        notes,
+        storeId,
+        cartItemIds,
+      } = req.body;
 
       const result = await this.orderCreationService.createOrder({
         userId: req.user.id,
@@ -37,6 +44,8 @@ export class OrderUserMutationController {
         shippingMethod,
         voucherCode,
         notes,
+        storeId, // Pass ke service
+        cartItemIds, // Pass ke service
       });
 
       res

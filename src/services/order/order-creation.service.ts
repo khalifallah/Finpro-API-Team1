@@ -1,3 +1,5 @@
+// src/services/order/order-creation.service.ts
+
 import prisma from "../../libs/prisma";
 import AppError from "../../errors/app.error";
 import {
@@ -11,6 +13,8 @@ export interface CreateOrderData {
   userId: number;
   userAddressId: number;
   shippingMethod: string;
+  storeId: number;
+  cartItemIds: number[];
   voucherCode?: string;
   notes?: string;
 }
@@ -34,22 +38,40 @@ export class OrderCreationService {
   constructor() {
     this.shippingService = new ShippingService();
   }
+
   async createOrder(data: CreateOrderData) {
     return await prisma.$transaction(async (tx) => {
-      const cart = await this.getUserCart(tx, data.userId);
+      // 1. Validasi Store
+      const store = await tx.store.findUnique({
+        where: { id: data.storeId, deletedAt: null },
+      });
+
+      if (!store) {
+        throw new AppError("Store not found or inactive", 404);
+      }
+
+      // 2. Ambil Cart Item KHUSUS untuk Store tersebut
+      const cart = await this.getUserCart(
+        tx,
+        data.userId,
+        data.storeId,
+        data.cartItemIds
+      );
       const userAddress = await this.getUserAddress(
         tx,
         data.userAddressId,
         data.userId
       );
-      const nearestStore = await this.findNearestStore(tx);
 
+      // 3. Proses Item (Hitung Subtotal & Cek Stok)
+      // Kita pakai store.id yang dikirim dari frontend
       const { subtotal, orderItems } = await this.processCartItems(
         tx,
         cart.cartItems,
-        nearestStore.id
+        store.id
       );
 
+      // 4. Proses Voucher
       const { discountAmount, userVoucherId } = await this.processVoucher(
         tx,
         data.voucherCode,
@@ -57,19 +79,18 @@ export class OrderCreationService {
         subtotal
       );
 
-      // Hitung shipping cost menggunakan ShippingService
-      const { store: shippingStore } =
-        await this.shippingService.findNearestStore(userAddress);
+      // 5. Hitung Shipping Cost
+      // Logic lama: findNearestStore -> SALAH (Bisa jadi beda dengan toko yang dipilih)
+      // Logic baru: Gunakan data.storeId langsung
 
-      // Hitung total weight dari cart items
       let totalWeight = 0;
       for (const item of cart.cartItems) {
-        totalWeight += 1000 * item.quantity; // Default 1000g per item
+        totalWeight += 1000 * item.quantity; // Default 1000g (todo: ambil dari product.weight)
       }
 
       const shippingResult =
         await this.shippingService.calculateShippingForCheckout(
-          shippingStore.id,
+          store.id, // Gunakan toko yang dipilih user
           userAddress,
           totalWeight,
           data.shippingMethod
@@ -78,15 +99,17 @@ export class OrderCreationService {
       const shippingCost = shippingResult.totalShippingCost;
       const totalAmount = subtotal + shippingCost - discountAmount;
 
-      // Update order creation dengan shipping cost
+      // 6. Buat Record Order
       const order = await this.createOrderRecord(tx, {
         userId: data.userId,
-        storeId: shippingStore.id,
+        storeId: store.id,
         userAddressId: userAddress.id,
         addressSnapshot: JSON.stringify({
           ...userAddress,
           distance: shippingResult.distance,
           shippingMethod: data.shippingMethod,
+          storeName: store.name, // Opsional: simpan nama toko di snapshot
+          storeAddress: store.address,
         }),
         subtotal,
         shippingCost,
@@ -96,15 +119,18 @@ export class OrderCreationService {
         orderItems,
       });
 
+      // 7. Potong Stok
       await this.updateStockAndCreateJournals(
         tx,
         cart.cartItems,
-        shippingStore.id,
+        store.id,
         order.id
       );
 
-      await this.clearCart(tx, cart.id, cart.cartItems); // Pass only cart items from the cart
+      // 8. Bersihkan Cart (Hanya item yang dicheckout)
+      await this.clearCart(tx, cart.id, cart.cartItems);
 
+      // 9. Tandai Voucher Terpakai
       if (userVoucherId) {
         await this.markVoucherAsUsed(tx, userVoucherId);
       }
@@ -116,23 +142,35 @@ export class OrderCreationService {
     });
   }
 
-  // Private helper methods for order creation
-  private async getUserCart(tx: any, userId: number) {
+  // --- HELPER METHODS ---
+
+  // [UPDATE] Filter cart items by storeId
+  private async getUserCart(
+    tx: any,
+    userId: number,
+    storeId: number,
+    cartItemIds: number[]
+  ) {
     const cart = await tx.cart.findFirst({
       where: {
         userId,
-        deletedAt: null,
       },
       include: {
         cartItems: {
           where: {
-            deletedAt: null, // CRITICAL: Only include non-deleted items
+            deletedAt: null,
+            storeId: storeId,
+            // [LOGIC BARU] Hanya ambil item yang ID-nya ada di list cartItemIds
+            id: { in: cartItemIds },
           },
           include: {
             product: {
               include: {
                 productStocks: {
-                  where: { deletedAt: null },
+                  where: {
+                    storeId: storeId,
+                    deletedAt: null,
+                  },
                 },
               },
             },
@@ -141,8 +179,8 @@ export class OrderCreationService {
       },
     });
 
-    if (!cart || cart.cartItems.length === 0) {
-      throw new AppError("Cart is empty", 400);
+    if (!cart || !cart.cartItems || cart.cartItems.length === 0) {
+      throw new AppError("Selected items not found in cart", 400);
     }
 
     return cart;
@@ -164,35 +202,16 @@ export class OrderCreationService {
     return userAddress;
   }
 
-  private async findNearestStore(tx: any) {
-    const nearestStore = await tx.store.findFirst({
-      where: {
-        deletedAt: null,
-      },
-      orderBy: {
-        id: "asc",
-      },
-    });
-
-    if (!nearestStore) {
-      throw new AppError("No store available to fulfill order", 400);
-    }
-
-    return nearestStore;
-  }
+  // Method findNearestStore dihapus karena storeId sudah ditentukan dari input
 
   private async processCartItems(tx: any, cartItems: any[], storeId: number) {
     let subtotal = 0;
     const orderItems = [];
 
     for (const cartItem of cartItems) {
-      const productStock = await tx.productStock.findFirst({
-        where: {
-          productId: cartItem.productId,
-          storeId,
-          deletedAt: null,
-        },
-      });
+      // Ambil stok dari relasi yang sudah di-include di getUserCart
+      // Array productStocks harusnya cuma isi 1 (milik toko tsb)
+      const productStock = cartItem.product.productStocks[0];
 
       if (!productStock || productStock.quantity < cartItem.quantity) {
         throw new AppError(
@@ -243,6 +262,9 @@ export class OrderCreationService {
         throw new AppError("Invalid or expired voucher", 400);
       }
 
+      // Validasi minimum purchase jika ada (opsional)
+      // if (userVoucher.voucher.minPurchase && subtotal < userVoucher.voucher.minPurchase) ...
+
       if (userVoucher.voucher.type === "PERCENTAGE") {
         discountAmount = Math.min(
           (subtotal * userVoucher.voucher.value) / 100,
@@ -271,7 +293,7 @@ export class OrderCreationService {
         totalAmount: orderData.totalAmount,
         userVoucherId: orderData.userVoucherId,
         status: OrderStatus.PENDING_PAYMENT,
-        paymentDeadline: new Date(Date.now() + 60 * 60 * 1000),
+        paymentDeadline: new Date(Date.now() + 60 * 60 * 1000), // 1 Jam
         orderItems: {
           create: orderData.orderItems,
         },
@@ -325,6 +347,7 @@ export class OrderCreationService {
             orderId,
             quantityChange: -cartItem.quantity,
             reason: "order_created",
+            // Tambahkan storeId jika ada di schema journal
           },
         });
       }
@@ -332,15 +355,16 @@ export class OrderCreationService {
   }
 
   private async clearCart(tx: any, cartId: number, processedItems: any[]) {
-    // Get IDs of items that were actually processed
+    // Ambil ID dari item yang SUDAH diproses menjadi order
     const processedItemIds = processedItems.map((item) => item.id);
 
-    // Only delete the items that were in the order
+    // Hapus (Soft Delete) hanya item tersebut
+    // Item dari toko lain di cart yang sama akan TETAP ADA (Safe)
     await tx.cartItem.updateMany({
       where: {
         cartId: cartId,
         id: { in: processedItemIds },
-        deletedAt: null, // Only delete active items
+        deletedAt: null,
       },
       data: {
         deletedAt: new Date(),
@@ -353,17 +377,5 @@ export class OrderCreationService {
       where: { id: userVoucherId },
       data: { isUsed: true },
     });
-  }
-
-  private calculateShippingCost(method: string, subtotal: number): number {
-    const baseCost = 15000;
-
-    if (method === "express") {
-      return baseCost * 1.5;
-    } else if (method === "same_day") {
-      return baseCost * 2;
-    }
-
-    return baseCost;
   }
 }

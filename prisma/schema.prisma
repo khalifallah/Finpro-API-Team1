@@ -108,6 +108,7 @@ model Store {
   users              User[]
   shippingConfigs    ShippingConfig[]
   shippingCostCaches ShippingCostCache[]
+  cartItems          CartItem[]
 
   @@map("stores")
 }
@@ -265,12 +266,13 @@ model DiscountRule {
 
   @@map("discount_rules")
 }
+
 // Mencatat pemakaian diskon pada sebuah order
 model DiscountUsage {
   id             Int          @id @default(autoincrement())
   discountRuleId Int          @map("discount_rule_id")
   orderId        Int          @map("order_id")
-  amount         Int          // Jumlah diskon yg diberikan
+  amount         Int // Jumlah diskon yg diberikan
   createdAt      DateTime     @default(now()) @map("created_at")
   deletedAt      DateTime?    @map("deleted_at")
   discountRule   DiscountRule @relation(fields: [discountRuleId], references: [id])
@@ -339,10 +341,13 @@ model CartItem {
   updatedAt DateTime  @updatedAt @map("updated_at")
   cartId    Int       @map("cart_id")
   productId Int       @map("product_id")
+  storeId   Int       @map("store_id")
   quantity  Int       @default(1)
   deletedAt DateTime? @map("deleted_at")
-  cart      Cart      @relation(fields: [cartId], references: [id])
-  product   Product   @relation(fields: [productId], references: [id])
+
+  cart    Cart    @relation(fields: [cartId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  store   Store   @relation(fields: [storeId], references: [id])
 
   @@unique([cartId, productId], map: "cart_product")
   @@map("cart_items")

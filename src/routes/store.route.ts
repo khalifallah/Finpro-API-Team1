@@ -13,10 +13,10 @@ const router = Router();
 
 // All routes require super admin access
 router.use(verifyToken);
+router.get("/", StoreController.getStores);
 router.use(superAdminAuth);
 
 // Store Management Routes
-router.get("/", StoreController.getStores);
 router.get("/deleted", StoreController.getDeletedStores);
 router.get("/:id", StoreController.getStoreById);
 router.post(

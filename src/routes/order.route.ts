@@ -66,9 +66,31 @@ router.post(
 
 // ==================== ORDER ROUTES ====================
 // Order operations that require verification
-router.get("/", requireVerifiedUser, OrderController.getUserOrders);
+// Admin only routes
+router.get(
+  "/admin/all",
+  requireVerifiedUser,
+  requirePermission("manage_orders"),
+  OrderController.getAllOrders
+);
 
-router.get("/:orderId", requireVerifiedUser, OrderController.getOrderDetail);
+router.get(
+  "/admin/:orderId",
+  requireVerifiedUser,
+  requirePermission("manage_orders"),
+  OrderController.getAdminOrderDetail
+);
+
+router.patch(
+  "/admin/:orderId/status",
+  validateRequest(updateOrderStatusSchema),
+  requireVerifiedUser,
+  requirePermission("manage_orders"),
+  OrderController.updateOrderStatus
+);
+
+// User order routes
+router.get("/", requireVerifiedUser, OrderController.getUserOrders);
 
 router.post(
   "/create",
@@ -98,20 +120,6 @@ router.post(
   OrderController.cancelOrder
 );
 
-// Admin only routes
-router.get(
-  "/admin/all",
-  requireVerifiedUser,
-  requirePermission("manage_orders"),
-  OrderController.getAllOrders
-);
-
-router.patch(
-  "/admin/:orderId/status",
-  validateRequest(updateOrderStatusSchema),
-  requireVerifiedUser,
-  requirePermission("manage_orders"),
-  OrderController.updateOrderStatus
-);
+router.get("/:orderId", requireVerifiedUser, OrderController.getOrderDetail);
 
 export default router;

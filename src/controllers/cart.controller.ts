@@ -38,22 +38,19 @@ export class CartController {
       const userId = getUserId(req);
       const { productId, quantity, storeId } = req.body;
 
-      if (!productId || !quantity) {
-        throw new AppError("Product ID and quantity are required", 400);
+      if (!productId || !quantity || !storeId) {
+        throw new AppError("Product ID, quantity, storeID are required", 400);
       }
 
       if (quantity <= 0) {
         throw new AppError("Quantity must be greater than 0", 400);
       }
 
-      // Default to store 1 if not provided
-      const targetStoreId = storeId || 1;
-
       const result = await cartService.addToCart({
         userId,
         productId,
         quantity,
-        storeId: targetStoreId,
+        storeId,
       });
 
       res.status(201).json(
@@ -78,9 +75,9 @@ export class CartController {
       const userId = getUserId(req);
       const { storeId } = req.query;
 
-      const targetStoreId = storeId ? Number(storeId) : 1;
+      const targetStoreId = storeId ? Number(storeId) : undefined;
 
-      if (isNaN(targetStoreId)) {
+      if (storeId && isNaN(targetStoreId as number)) {
         throw new AppError("Invalid store ID format", 400);
       }
 
@@ -155,7 +152,11 @@ export class CartController {
   ): Promise<void> {
     try {
       const userId = getUserId(req);
-      await cartService.clearCart(userId);
+      const { storeId } = req.query;
+
+      const targetStoreId = storeId ? Number(storeId) : undefined;
+
+      await cartService.clearCart(userId, targetStoreId);
 
       res
         .status(200)
@@ -213,13 +214,11 @@ export class CartController {
         },
       });
 
-      res
-        .status(200)
-        .json(
-          responseBuilder(200, "Cart refreshed successfully", {
-            cartId: cart.id,
-          })
-        );
+      res.status(200).json(
+        responseBuilder(200, "Cart refreshed successfully", {
+          cartId: cart.id,
+        })
+      );
     } catch (error) {
       next(error);
     }

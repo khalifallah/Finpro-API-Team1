@@ -5,7 +5,7 @@ export interface IAddToCartParam {
   userId: number;
   productId: number;
   quantity: number;
-  storeId?: number;
+  storeId: number;
 }
 
 export interface IUpdateCartItemParam {
@@ -18,47 +18,41 @@ export interface IRemoveCartItemParam {
 }
 
 export class CartService {
-  // Tambahkan item ke cart
+  // 1. TAMBAHKAN ITEM KE CART
   async addToCart(data: IAddToCartParam): Promise<any> {
     try {
       return await prisma.$transaction(async (tx) => {
-        // 1. Pastikan user memiliki cart, jika belum buat
+        // A. Pastikan user memiliki cart header
         let cart = await tx.cart.findUnique({
           where: { userId: data.userId },
         });
 
         if (!cart) {
           cart = await tx.cart.create({
-            data: {
-              userId: data.userId,
-            },
+            data: { userId: data.userId },
           });
         }
 
-        // 2. Validasi product
+        // B. Validasi Product
         const product = await tx.product.findUnique({
-          where: {
-            id: data.productId,
-            deletedAt: null,
-          },
+          where: { id: data.productId, deletedAt: null },
         });
 
         if (!product) {
           throw new AppError("Product not found", 404);
         }
 
-        // 3. Cek stok (gunakan store terdekat atau store default)
-        const storeId = data.storeId || 1; // Default store ID 1
+        // C. Cek Stok (Sesuai Store ID yang dikirim)
         const productStock = await tx.productStock.findFirst({
           where: {
             productId: data.productId,
-            storeId,
+            storeId: data.storeId, // [UPDATE] Cek stok di toko target
             deletedAt: null,
           },
         });
 
         if (!productStock) {
-          throw new AppError("Product out of stock", 400);
+          throw new AppError("Product not found in this store", 400);
         }
 
         if (productStock.quantity < data.quantity) {
@@ -68,24 +62,27 @@ export class CartService {
           );
         }
 
-        // 4. Cek apakah item sudah ada di cart (termasuk yang soft deleted)
+        // D. Cek apakah item sudah ada (Unik: Cart + Product + STORE)
         const existingCartItem = await tx.cartItem.findFirst({
           where: {
             cartId: cart.id,
             productId: data.productId,
+            storeId: data.storeId, // [UPDATE] Pembeda item antar toko
           },
         });
 
         let cartItem;
 
         if (existingCartItem) {
-          // Update existing item (including restoring if soft-deleted)
-          const newQuantity = existingCartItem.quantity + data.quantity;
+          // Update Existing Item
+          const newQuantity = existingCartItem.deletedAt
+            ? data.quantity // Jika dulunya dihapus, reset qty
+            : existingCartItem.quantity + data.quantity;
 
-          // Check stock again with new quantity
+          // Cek stok lagi dengan total qty baru
           if (productStock.quantity < newQuantity) {
             throw new AppError(
-              `Cannot add more items. Total ${newQuantity} exceeds available stock (${productStock.quantity}).`,
+              `Cannot add more. Total ${newQuantity} exceeds stock (${productStock.quantity}).`,
               400
             );
           }
@@ -94,34 +91,29 @@ export class CartService {
             where: { id: existingCartItem.id },
             data: {
               quantity: newQuantity,
-              deletedAt: null, // Add this line to restore soft-deleted items
+              deletedAt: null, // Restore soft-deleted items
             },
             include: {
               product: {
                 include: {
-                  productImages: {
-                    where: { deletedAt: null },
-                    take: 1,
-                  },
+                  productImages: { where: { deletedAt: null }, take: 1 },
                 },
               },
             },
           });
         } else {
-          // Create new cart item
+          // Create New Item (Simpan Store ID)
           cartItem = await tx.cartItem.create({
             data: {
               cartId: cart.id,
               productId: data.productId,
               quantity: data.quantity,
+              storeId: data.storeId, // [UPDATE] Simpan ID Toko ke DB
             },
             include: {
               product: {
                 include: {
-                  productImages: {
-                    where: { deletedAt: null },
-                    take: 1,
-                  },
+                  productImages: { where: { deletedAt: null }, take: 1 },
                 },
               },
             },
@@ -137,41 +129,41 @@ export class CartService {
         };
       });
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
+      if (error instanceof AppError) throw error;
       console.error("Add to cart error:", error);
-      // Log the actual error for debugging
-      console.error("Full error details:", {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      throw new AppError("Failed to add item to cart. Please try again.", 500);
+      throw new AppError("Failed to add item to cart.", 500);
     }
   }
 
-  // Dapatkan cart user
-  async getUserCart(userId: number, storeId: number = 1): Promise<any> {
+  // 2. DAPATKAN CART USER (FILTERED BY STORE)
+  async getUserCart(userId: number, storeId?: number): Promise<any> {
     try {
+      // Logic Filter: Hanya ambil item yang tidak dihapus
+      const itemWhereClause: any = { deletedAt: null };
+
+      // [UPDATE] Jika storeId dikirim, filter item milik toko itu saja
+      if (storeId) {
+        itemWhereClause.storeId = storeId;
+      }
+
       const cart = await prisma.cart.findUnique({
         where: { userId },
         include: {
           cartItems: {
-            where: {
-              deletedAt: null, // Only get non-deleted items
-            },
+            where: itemWhereClause, // Terapkan filter di sini
+            orderBy: { createdAt: "desc" }, // Urutkan dari yang terbaru
             include: {
               product: {
                 include: {
-                  productImages: {
-                    where: { deletedAt: null },
-                    take: 1,
-                  },
+                  productImages: { where: { deletedAt: null }, take: 1 },
                   category: true,
+                  // Include stok untuk validasi di frontend
                   productStocks: {
                     where: {
+                      // Ambil stok sesuai toko item tersebut
+                      // Jika storeId ada di param, pakai itu. Jika tidak, tetap valid karena filter item sudah jalan.
                       storeId: storeId,
-                      deletedAt: null, // Add this filter
+                      deletedAt: null,
                     },
                   },
                 },
@@ -181,34 +173,12 @@ export class CartService {
         },
       });
 
-      // Jika cart tidak ada, buat cart kosong
+      // Jika cart belum ada
       if (!cart) {
-        const newCart = await prisma.cart.create({
-          data: { userId },
-          include: {
-            cartItems: {
-              include: {
-                product: {
-                  include: {
-                    productImages: {
-                      where: { deletedAt: null },
-                      take: 1,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        });
-
-        return {
-          ...newCart,
-          totalItems: 0,
-          subtotal: 0,
-        };
+        return { cartItems: [], totalItems: 0, subtotal: 0 };
       }
 
-      // Hitung total items dan subtotal
+      // Hitung ulang total (karena item mungkin terfilter)
       let totalItems = 0;
       let subtotal = 0;
 
@@ -216,6 +186,8 @@ export class CartService {
         totalItems += item.quantity;
         subtotal += item.product.defaultPrice * item.quantity;
 
+        // Ambil info stok untuk properti 'stockAvailable'
+        // Karena kita sudah filter productStocks di include atas, array ini harusnya cuma isi 1 atau 0
         const availableStock = item.product.productStocks[0]?.quantity || 0;
 
         return {
@@ -236,7 +208,7 @@ export class CartService {
     }
   }
 
-  // Update quantity item di cart
+  // 3. UPDATE QUANTITY (FIX BUG HARDCODED ID)
   async updateCartItem(
     cartItemId: number,
     userId: number,
@@ -247,41 +219,32 @@ export class CartService {
         throw new AppError("Quantity must be greater than 0", 400);
       }
 
-      // First, check if cart item exists and belongs to user (including soft-deleted)
+      // Ambil CartItem dan cek kepemilikan
       const cartItem = await prisma.cartItem.findFirst({
         where: {
           id: cartItemId,
-          cart: {
-            userId,
-            deletedAt: null,
-          },
+          cart: { userId, deletedAt: null },
         },
-        include: {
-          product: true,
-          cart: true,
-        },
+        include: { cart: true },
       });
 
       if (!cartItem) {
         throw new AppError("Cart item not found", 404);
       }
 
-      // If item is soft-deleted, restore it first
+      // Jika item statusnya soft-deleted, kita restore dulu
       if (cartItem.deletedAt) {
         await prisma.cartItem.update({
           where: { id: cartItemId },
-          data: {
-            deletedAt: null,
-            quantity: quantity, // Set to new quantity
-          },
+          data: { deletedAt: null, quantity: quantity },
         });
       } else {
-        // Check stock (only if not soft-deleted)
-        const storeId = 1; // Default store
+        // [UPDATE] Cek Stok menggunakan storeId MILIK ITEM TERSEBUT
+        // (Mengambil dari database, bukan hardcoded 1 lagi)
         const productStock = await prisma.productStock.findFirst({
           where: {
             productId: cartItem.productId,
-            storeId,
+            storeId: cartItem.storeId, // <--- Bug Fix: Dinamis sesuai toko item
             deletedAt: null,
           },
         });
@@ -300,16 +263,13 @@ export class CartService {
         });
       }
 
-      // Return updated cart item
+      // Return item yang sudah diupdate untuk frontend
       const updatedCartItem = await prisma.cartItem.findUnique({
         where: { id: cartItemId },
         include: {
           product: {
             include: {
-              productImages: {
-                where: { deletedAt: null },
-                take: 1,
-              },
+              productImages: { where: { deletedAt: null }, take: 1 },
             },
           },
         },
@@ -317,23 +277,18 @@ export class CartService {
 
       return {
         cartItem: updatedCartItem,
-        message: cartItem.deletedAt
-          ? "Cart item restored and updated"
-          : "Cart item updated successfully",
+        message: "Cart item updated successfully",
       };
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
+      if (error instanceof AppError) throw error;
       console.error("Update cart item error:", error);
       throw new AppError("Failed to update cart item", 500);
     }
   }
 
-  // Hapus item dari cart
+  // 4. REMOVE ITEM
   async removeCartItem(cartItemId: number, userId: number): Promise<void> {
     try {
-      // Validasi ownership
       const cartItem = await prisma.cartItem.findFirst({
         where: {
           id: cartItemId,
@@ -342,49 +297,41 @@ export class CartService {
         },
       });
 
-      if (!cartItem) {
-        throw new AppError("Cart item not found", 404);
-      }
+      if (!cartItem) throw new AppError("Cart item not found", 404);
 
-      // Soft delete cart item
       await prisma.cartItem.update({
         where: { id: cartItemId },
         data: { deletedAt: new Date() },
       });
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      console.error("Remove cart item error:", error);
+      if (error instanceof AppError) throw error;
       throw new AppError("Failed to remove item from cart", 500);
     }
   }
 
-  // Kosongkan cart (soft delete semua items)
-  async clearCart(userId: number): Promise<void> {
+  // 5. CLEAR CART (FILTERED)
+  async clearCart(userId: number, storeId?: number): Promise<void> {
     try {
       const cart = await prisma.cart.findUnique({
         where: { userId },
-        include: {
-          cartItems: {
-            where: { deletedAt: null },
-          },
-        },
       });
 
-      if (!cart) {
-        throw new AppError("Cart not found", 404);
+      if (!cart) throw new AppError("Cart not found", 404);
+
+      // Siapkan filter
+      const whereClause: any = {
+        cartId: cart.id,
+        deletedAt: null,
+      };
+
+      // [UPDATE] Jika storeId ada, hanya hapus item dari toko tsb
+      if (storeId) {
+        whereClause.storeId = storeId;
       }
 
-      // Soft delete semua cart items
       await prisma.cartItem.updateMany({
-        where: {
-          cartId: cart.id,
-          deletedAt: null,
-        },
-        data: {
-          deletedAt: new Date(),
-        },
+        where: whereClause,
+        data: { deletedAt: new Date() },
       });
     } catch (error) {
       console.error("Clear cart error:", error);
@@ -392,9 +339,11 @@ export class CartService {
     }
   }
 
-  // Get cart summary untuk checkout
+  // 6. GET SUMMARY (Untuk Checkout)
   async getCartSummary(userId: number): Promise<any> {
     try {
+      // NOTE: Untuk sementara kita ambil semua / default behavior.
+      // Idealnya nanti checkout juga mengirim storeId.
       const cart = await this.getUserCart(userId);
 
       if (!cart.cartItems || cart.cartItems.length === 0) {
@@ -407,9 +356,8 @@ export class CartService {
         };
       }
 
-      // Hitung total weight (default 1000g per product)
       const totalWeight = cart.cartItems.reduce((total: number, item: any) => {
-        return total + 1000 * item.quantity;
+        return total + 1000 * item.quantity; // Default weight 1kg (bisa disesuaikan nanti)
       }, 0);
 
       return {
@@ -425,7 +373,8 @@ export class CartService {
           price: item.product.defaultPrice,
           quantity: item.quantity,
           total: item.product.defaultPrice * item.quantity,
-          inStock: true, // TODO: Check real stock
+          inStock: true,
+          storeId: item.storeId, // [INFO] Sertakan storeId di summary
         })),
       };
     } catch (error) {

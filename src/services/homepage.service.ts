@@ -27,6 +27,12 @@ export interface HomepageData {
       type: "promotion" | "info" | "banner";
     }>;
   };
+  nearestStore?: {
+    id: number;
+    name: string;
+    address: string;
+    distance?: number;
+  };
   productList: {
     store: {
       id: number;
@@ -86,11 +92,26 @@ export class HomepageService {
     latitude?: number,
     longitude?: number,
     page: number = 1,
-    limit: number = 10
+    limit: number = 10,
+    storeId?: number
   ): Promise<HomepageData> {
     try {
-      // 1. Get nearest store based on location
-      const store = await this.getNearestStore(latitude, longitude);
+      let store;
+
+      // LOGIC PENENTUAN TOKO:
+      if (storeId) {
+        // 1. Prioritas Utama: Jika storeId dikirim spesifik (Manual Select)
+        store = await this.getStoreById(storeId);
+
+        // (Opsional) Jika koordinat ada, hitung jaraknya sekalian biar UI tetap cantik
+        if (latitude && longitude && store.latitude && store.longitude) {
+          // Reuse logic hitung jarak (atau biarkan undefined)
+          // store.distance = ...
+        }
+      } else {
+        // 2. Prioritas Kedua: Auto-detect by Location
+        store = await this.getNearestStore(latitude, longitude);
+      }
 
       // 2. Get navigation data (categories)
       const categories = await this.getNavigationCategories();
@@ -133,6 +154,12 @@ export class HomepageService {
             link: item.link || "#",
             type: item.type as "promotion" | "info" | "banner",
           })),
+        },
+        nearestStore: {
+          id: store.id,
+          name: store.name,
+          address: store.address || "",
+          distance: latitude && longitude ? store.distance : undefined,
         },
         productList: {
           store: {

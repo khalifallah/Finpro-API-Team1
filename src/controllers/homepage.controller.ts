@@ -35,12 +35,16 @@ export class HomepageController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
 
+      const storeIdParam = req.query.storeId;
+      const storeId = storeIdParam ? Number(storeIdParam) : undefined;
+
       // Get homepage data
       const homepageData = await homepageService.getHomepageData(
         latitude,
         longitude,
         page,
-        limit
+        limit,
+        storeId
       );
 
       // Add location info to response

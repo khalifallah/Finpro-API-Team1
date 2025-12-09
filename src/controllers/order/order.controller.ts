@@ -36,6 +36,10 @@ export class OrderController {
     return orderAdminController.getAllOrders(req, res, next);
   }
 
+  static async getAdminOrderDetail(req: any, res: any, next: any) {
+    return orderAdminController.getOrderDetail(req, res, next);
+  }
+
   static async updateOrderStatus(req: any, res: any, next: any) {
     return orderAdminController.updateOrderStatus(req, res, next);
   }

@@ -101,6 +101,77 @@ export class OrderAdminController {
     }
   }
 
+  async getOrderDetail(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new AppError("User not authenticated", 401);
+      }
+
+      const { orderId } = req.params;
+
+      const order = await prisma.order.findFirst({
+        where: {
+          id: Number(orderId),
+          deletedAt: null,
+        },
+        include: {
+          orderItems: {
+            include: {
+              product: {
+                include: {
+                  productImages: {
+                    where: { deletedAt: null },
+                  },
+                },
+              },
+            },
+          },
+          store: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+            },
+          },
+          userAddress: true,
+          payment: true,
+          user: {
+            // Admin perlu melihat siapa pembelinya
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      if (!order) {
+        throw new AppError("Order not found", 404);
+      }
+
+      // Validasi akses Store Admin
+      if (
+        req.user.role === "STORE_ADMIN" &&
+        order.storeId !== req.user.storeId
+      ) {
+        throw new AppError("Access denied to this order", 403);
+      }
+
+      res.status(200).json(
+        responseBuilder(200, "Order details retrieved successfully", {
+          order,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async updateOrderStatus(
     req: Request,
     res: Response,

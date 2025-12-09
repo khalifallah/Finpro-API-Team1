@@ -183,3 +183,93 @@ export const getDeletedProducts = async (query: ProductQuery): Promise<{ product
         throw err;
     }
 };
+
+// Refactor: Add images to existing product
+export const addProductImages = async (
+    productId: number,
+    images: Express.Multer.File[]
+): Promise<ProductResponse> => {
+    try {
+        // Check product exists
+        const product = await prisma.product.findUnique({
+            where: { id: productId, deletedAt: null },
+            include: { category: true, productImages: true },
+        });
+
+        if (!product) {
+            throw new Error("Product not found");
+        }
+
+        // Check max images (5 limit)
+        const currentImageCount = product.productImages?.length || 0;
+        const maxImages = 5;
+        
+        if (currentImageCount + images.length > maxImages) {
+            throw new Error(
+                `Cannot add ${images.length} image(s). Product already has ${currentImageCount} images. Maximum ${maxImages} allowed.`
+            );
+        }
+
+        if (!images || images.length === 0) {
+            throw new Error("No images provided");
+        }
+
+        // Process and save images
+        const imageUrls: string[] = await Promise.all(
+            images.map((img) => processImage(img))
+        );
+
+        // Create image records
+        await prisma.productImage.createMany({
+            data: imageUrls.map((url) => ({
+                productId,
+                imageUrl: url,
+            })),
+        });
+
+        // Return updated product
+        const updatedProduct = await prisma.product.findUnique({
+            where: { id: productId },
+            include: { category: true, productImages: true },
+        });
+
+        return transformProductToResponse(updatedProduct as DBProduct, 0);
+    } catch (err) {
+        console.error("Error adding product images:", err);
+        throw err;
+    }
+};
+
+// Refactor: Delete specific product image
+export const deleteProductImage = async (
+    productId: number,
+    imageId: number
+): Promise<void> => {
+    try {
+        // Check image exists and belongs to product
+        const image = await prisma.productImage.findFirst({
+            where: { id: imageId, productId },
+        });
+
+        if (!image) {
+            throw new Error("Image not found or does not belong to this product");
+        }
+
+        // Check minimum images (at least 1 required)
+        const imageCount = await prisma.productImage.count({
+            where: { productId },
+        });
+
+        if (imageCount <= 1) {
+            throw new Error("Cannot delete the last image. Product must have at least one image.");
+        }
+
+        // Delete image record (file cleanup can be handled separately)
+        await prisma.productImage.delete({
+            where: { id: imageId },
+        });
+    } catch (err: any) {
+        console.error("Error deleting product image:", err);
+        throw err;
+    }
+};

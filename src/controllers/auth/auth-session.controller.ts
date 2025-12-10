@@ -16,6 +16,7 @@ import { GoogleAuthService as GoogleTokenVerifier } from "../../services/auth/go
 import prisma from "../../libs/prisma";
 
 export class AuthSessionController {
+  // ✅ UPDATE: Login method to include store info
   static async login(req: Request, res: Response, next: NextFunction) {
     try {
       let data: any;
@@ -29,9 +30,35 @@ export class AuthSessionController {
         throw new AppError("Invalid LoginService implementation", 500);
       }
 
+      // ✅ ADD: Fetch store info jika user adalah STORE_ADMIN
+      let store = null;
+      if (data.user.role === "STORE_ADMIN" && data.user.id) {
+        const storeData = await prisma.store.findFirst({
+          where: {
+            users: {
+              some: {
+                id: data.user.id,
+                deletedAt: null,
+              },
+            },
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+        });
+        store = storeData;
+        console.log("🏪 Store for STORE_ADMIN:", store);
+      }
+
+      // ✅ ADD: Include store in response
       res.status(200).json(
         responseBuilder(200, "Login successful", {
-          user: data.user,
+          user: {
+            ...data.user,
+            store: store, // ✅ Add store here
+          },
           token: data.token,
         })
       );
@@ -85,6 +112,7 @@ export class AuthSessionController {
     }
   }
 
+  // ✅ UPDATE: getCurrentUser method to include store info
   static async getCurrentUser(
     req: Request,
     res: Response,
@@ -109,6 +137,28 @@ export class AuthSessionController {
       if (!user) {
         throw new AppError("User not found", 404);
       }
+
+      // ✅ ADD: Fetch store info jika user adalah STORE_ADMIN
+      let store = null;
+      if (user.role === "STORE_ADMIN" && user.id) {
+        const storeData = await prisma.store.findFirst({
+          where: {
+            users: {
+              some: {
+                id: user.id,
+                deletedAt: null,
+              },
+            },
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+        });
+        store = storeData;
+      }
+
       res.status(200).json(
         responseBuilder(200, "User data retrieved successfully", {
           user: {
@@ -118,6 +168,7 @@ export class AuthSessionController {
             role: user.role,
             photoUrl: user.photoUrl,
             storeId: user.storeId,
+            store: store, // ✅ Add store here
             emailVerifiedAt: user.emailVerifiedAt,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,

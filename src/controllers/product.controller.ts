@@ -111,3 +111,66 @@ export const getDeletedProducts = async (req: Request, res: Response) => {
         res.status(500).json({ error: "Failed to fetch deleted products" });
     }
 };
+
+// Refactor: Add images to existing product (SUPER ADMIN ONLY)
+export const addProductImages = async (req: Request, res: Response) => {
+    try {
+        const productId = parseInt(req.params.id);
+        
+        if (isNaN(productId)) {
+            return res.status(400).json({ error: "Invalid product ID" });
+        }
+
+        if (!req.files || (Array.isArray(req.files) && req.files.length === 0)) {
+            return res.status(400).json({ error: "No images provided" });
+        }
+
+        const files = Array.isArray(req.files) ? req.files : [req.files];
+        const product = await productService.addProductImages(productId, files as Express.Multer.File[]);
+        
+        res.status(201).json({
+            message: "Images added successfully",
+            data: product,
+        });
+    } catch (err: any) {
+        console.error("Error adding images:", err);
+        
+        if (err.message.includes("not found")) {
+            return res.status(404).json({ error: err.message });
+        }
+        if (err.message.includes("Cannot add")) {
+            return res.status(400).json({ error: err.message });
+        }
+        
+        res.status(500).json({ error: "Failed to add images" });
+    }
+};
+
+// Refactor: Delete specific product image (SUPER ADMIN ONLY)
+export const deleteProductImage = async (req: Request, res: Response) => {
+    try {
+        const productId = parseInt(req.params.id);
+        const imageId = parseInt(req.params.imageId);
+
+        if (isNaN(productId) || isNaN(imageId)) {
+            return res.status(400).json({ error: "Invalid product ID or image ID" });
+        }
+
+        await productService.deleteProductImage(productId, imageId);
+        
+        res.json({
+            message: "Image deleted successfully",
+        });
+    } catch (err: any) {
+        console.error("Error deleting image:", err);
+        
+        if (err.message.includes("not found")) {
+            return res.status(404).json({ error: err.message });
+        }
+        if (err.message.includes("Cannot delete")) {
+            return res.status(400).json({ error: err.message });
+        }
+        
+        res.status(500).json({ error: "Failed to delete image" });
+    }
+};

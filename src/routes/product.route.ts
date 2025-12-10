@@ -21,6 +21,12 @@ router.get("/deleted", superAdminAuth, productController.getDeletedProducts);
 // SUPER ADMIN: CRUD Operations
 router.post("/", superAdminAuth, uploadImages, productController.createProduct);
 router.put("/:id", superAdminAuth, productController.updateProduct);
+
+// Refactor: Image management endpoints
+router.post("/:id/images", superAdminAuth, uploadImages, productController.addProductImages);
+router.delete("/:id/images/:imageId", superAdminAuth, confirmDelete, productController.deleteProductImage);
+
+// Delete & Restore product
 router.delete("/:id", superAdminAuth, confirmDelete, productController.deleteProduct);
 router.put("/:id/restore", superAdminAuth, productController.restoreProduct);
 

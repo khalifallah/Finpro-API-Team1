@@ -13,33 +13,29 @@ export const getMonthlySales = async (query: SalesReportQuery, userStoreId?: num
     const orders = await prisma.order.findMany({
       where: {
         createdAt: { gte: dateStart, lt: dateEnd },
-        ...(finalStoreId ? { storeId: finalStoreId } : {}), // Filter by storeId jika ada, atau semua jika super admin
+        ...(finalStoreId ? { storeId: finalStoreId } : {}),
       },
+      include: { orderItems: true },
     });
 
-    if (finalStoreId) {
-      // Store admin atau super admin filter by store
-      const totalSales = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-      const totalOrders = orders.length;
-      return [{
-        month, year, totalSales, totalOrders, storeId: finalStoreId,
-      }];
-    } else {
-      // Super admin: group by store
-      const grouped = orders.reduce((acc, order) => {
-        const key = order.storeId;
-        if (!acc[key]) {
-          acc[key] = { storeId: key, totalSales: 0, totalOrders: 0 };
-        }
-        acc[key].totalSales += order.totalAmount || 0;
-        acc[key].totalOrders += 1;
-        return acc;
-      }, {} as Record<number, any>);
-      return Object.values(grouped).map(s => ({
-        month, year, totalSales: s.totalSales, totalOrders: s.totalOrders, storeId: s.storeId,
-      }));
-    }
+    // ✅ Calculate correctly
+    const totalSales = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+    const totalTransactions = orders.length;
+    const totalQuantity = orders.reduce((sum, order) => {
+      return sum + (order.orderItems?.reduce((q, item) => q + (item.quantity || 0), 0) || 0);
+    }, 0);
+
+    // ✅ Return as array dengan single object
+    return [{
+      month,
+      year,
+      totalTransactions,
+      totalSales,
+      totalQuantity,
+      storeId: finalStoreId || null,
+    }];
   } catch (error) {
+    console.error('Error in getMonthlySales:', error);
     throw new AppError("Failed to fetch monthly sales", 500);
   }
 };
@@ -67,18 +63,28 @@ export const getSalesByCategory = async (query: SalesReportQuery, userStoreId?: 
       if (!acc[key]) {
         acc[key] = {
           categoryId: item.product.categoryId,
-          categoryName: item.product.category.name,
+          categoryName: item.product.category?.name || 'Uncategorized',
           totalSales: 0,
+          quantity: 0,
         };
       }
       acc[key].totalSales += (item.priceAtPurchase || 0) * (item.quantity || 0);
+      acc[key].quantity += item.quantity || 0;
       return acc;
     }, {} as Record<number, any>);
 
+    // ✅ Map with all required fields
     return Object.values(grouped).map(s => ({
-      ...s, month, year, storeId: finalStoreId || null, // Null untuk super admin all
+      categoryId: s.categoryId,
+      categoryName: s.categoryName,
+      quantity: s.quantity,
+      totalSales: s.totalSales,
+      month,
+      year,
+      storeId: finalStoreId || null,
     }));
   } catch (error) {
+    console.error('Error in getSalesByCategory:', error);
     throw new AppError("Failed to fetch sales by category", 500);
   }
 };
@@ -108,18 +114,26 @@ export const getSalesByProduct = async (query: SalesReportQuery, userStoreId?: n
           productId: item.productId,
           productName: item.product.name,
           totalSales: 0,
-          totalQuantity: 0,
+          quantity: 0,
         };
       }
       acc[key].totalSales += (item.priceAtPurchase || 0) * (item.quantity || 0);
-      acc[key].totalQuantity += item.quantity || 0;
+      acc[key].quantity += item.quantity || 0;
       return acc;
     }, {} as Record<number, any>);
 
+    // ✅ Map with all required fields
     return Object.values(grouped).map(s => ({
-      ...s, month, year, storeId: finalStoreId || null,
+      productId: s.productId,
+      productName: s.productName,
+      quantity: s.quantity,
+      totalSales: s.totalSales,
+      month,
+      year,
+      storeId: finalStoreId || null,
     }));
   } catch (error) {
+    console.error('Error in getSalesByProduct:', error);
     throw new AppError("Failed to fetch sales by product", 500);
   }
 };

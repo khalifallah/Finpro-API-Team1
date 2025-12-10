@@ -10,7 +10,6 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
     const dateStart = new Date(year, month - 1, 1);
     const dateEnd = new Date(year, month, 1);
 
-    // Get journals for changes
     const journals = await prisma.stockJournal.findMany({
       where: {
         createdAt: { gte: dateStart, lt: dateEnd },
@@ -19,28 +18,29 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
       include: { productStock: { include: { product: true } } },
     });
 
-    // Aggregate changes
     const grouped = journals.reduce((acc, journal) => {
       const key = journal.productStock.productId;
       if (!acc[key]) {
         acc[key] = {
           productId: journal.productStock.productId,
           productName: journal.productStock.product.name,
-          totalAdded: 0,
-          totalSubtracted: 0,
+          totalAddition: 0,
+          totalReduction: 0,
           storeId: journal.productStock.storeId,
         };
       }
       if (journal.quantityChange > 0) {
-        acc[key].totalAdded += journal.quantityChange;
+        acc[key].totalAddition += journal.quantityChange;
       } else {
-        acc[key].totalSubtracted += Math.abs(journal.quantityChange);
+        acc[key].totalReduction += Math.abs(journal.quantityChange);
       }
       return acc;
     }, {} as Record<number, any>);
 
-    // Get current stock for finalStock
+    // Get current stock
     const productIds = Object.keys(grouped).map(id => parseInt(id));
+    if (productIds.length === 0) return [];
+
     const currentStocks = await prisma.productStock.findMany({
       where: {
         productId: { in: productIds },
@@ -54,14 +54,19 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
       return map;
     }, {} as Record<number, number>);
 
+    // ✅ Map with all required fields
     return Object.values(grouped).map(s => ({
-      ...s,
-      finalStock: stockMap[s.productId] || 0, // current quantity as final stock
+      productId: s.productId,
+      productName: s.productName,
+      totalAddition: s.totalAddition,
+      totalReduction: s.totalReduction,
+      finalStock: stockMap[s.productId] || 0,
       month,
       year,
-      storeId: finalStoreId || null,
+      storeId: s.storeId || finalStoreId || null,
     }));
   } catch (error) {
+    console.error('Error in getStockSummary:', error);
     throw new AppError("Failed to fetch stock summary", 500);
   }
 };
@@ -81,20 +86,23 @@ export const getStockDetail = async (query: StockReportQuery, userStoreId?: numb
         ...(productId ? { productStock: { productId } } : {}),
       },
       include: { productStock: { include: { product: true } } },
+      orderBy: { createdAt: 'desc' },
     });
 
+    // ✅ Map with all required fields
     return details.map(d => ({
       productId: d.productStock.productId,
       productName: d.productStock.product.name,
-      changeType: d.reason,
+      date: d.createdAt,
       quantity: d.quantityChange,
-      reason: d.reason,
-      createdAt: d.createdAt,
+      reason: d.reason || 'Unknown',
+      type: d.quantityChange > 0 ? 'IN' : 'OUT',
       month,
       year,
       storeId: d.productStock.storeId,
     }));
   } catch (error) {
+    console.error('Error in getStockDetail:', error);
     throw new AppError("Failed to fetch stock detail", 500);
   }
 };

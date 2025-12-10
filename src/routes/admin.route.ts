@@ -7,8 +7,10 @@ import {
 
 const router = Router();
 
-// ✅ Apply adminAuth to semua routes
 router.use(adminAuth);
+
+// ✅ GET all stores for dropdown
+router.get("/stores", superAdminAuth, adminController.getAllStores);
 
 // ✅ GET all users dengan pagination, search, role filter
 // Endpoint: GET /admin/users

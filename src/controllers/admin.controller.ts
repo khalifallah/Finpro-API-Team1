@@ -125,3 +125,31 @@ export const deleteUser = async (
     next(err);
   }
 };
+
+export const getAllStores = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    // ✅ Use getStores dengan query kosong (akan return semua stores)
+    const result = await storeService.getStores({
+      page: 1,
+      limit: 1000, // Limit besar untuk get all
+    });
+
+    console.log("✅ Returning stores:", result.stores.length);
+
+    res.status(200).json(
+      responseBuilder(200, "Stores retrieved successfully", {
+        stores: result.stores.map((store) => ({
+          id: store.id,
+          name: store.name,
+        })),
+      })
+    );
+  } catch (err) {
+    console.error("❌ getAllStores error:", err);
+    next(err);
+  }
+};

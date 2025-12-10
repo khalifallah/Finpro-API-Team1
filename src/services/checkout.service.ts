@@ -165,7 +165,7 @@ export class CheckoutService {
           userAddresses.find((addr) => addr.isMain) || userAddresses[0];
       }
 
-      // Dapatkan cart items
+      // Dapatkan cart items (only non-deleted)
       const cart = await prisma.cart.findFirst({
         where: {
           userId,
@@ -173,6 +173,9 @@ export class CheckoutService {
         },
         include: {
           cartItems: {
+            where: {
+              deletedAt: null, // Only include non-deleted items
+            },
             include: {
               product: {
                 include: {

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { CartService } from "../services/cart.service";
 import AppError from "../errors/app.error";
 import { responseBuilder } from "../utils/response.builder";
+import prisma from "../libs/prisma";
 
 const cartService = new CartService();
 
@@ -38,10 +39,7 @@ export class CartController {
       const { productId, quantity, storeId } = req.body;
 
       if (!productId || !quantity || !storeId) {
-        throw new AppError(
-          "Product ID, quantity, and storeId are required",
-          400
-        );
+        throw new AppError("Product ID, quantity, storeID are required", 400);
       }
 
       if (quantity <= 0) {
@@ -62,6 +60,7 @@ export class CartController {
         })
       );
     } catch (error) {
+      console.error("Add to cart controller error:", error);
       next(error);
     }
   }
@@ -76,9 +75,9 @@ export class CartController {
       const userId = getUserId(req);
       const { storeId } = req.query;
 
-      const targetStoreId = storeId ? Number(storeId) : 1;
+      const targetStoreId = storeId ? Number(storeId) : undefined;
 
-      if (isNaN(targetStoreId)) {
+      if (storeId && isNaN(targetStoreId as number)) {
         throw new AppError("Invalid store ID format", 400);
       }
 
@@ -153,7 +152,11 @@ export class CartController {
   ): Promise<void> {
     try {
       const userId = getUserId(req);
-      await cartService.clearCart(userId);
+      const { storeId } = req.query;
+
+      const targetStoreId = storeId ? Number(storeId) : undefined;
+
+      await cartService.clearCart(userId, targetStoreId);
 
       res
         .status(200)
@@ -176,6 +179,44 @@ export class CartController {
       res.status(200).json(
         responseBuilder(200, "Cart summary retrieved successfully", {
           summary,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // a refreshCart method
+  static async refreshCart(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = getUserId(req);
+
+      // Ensure cart exists
+      let cart = await prisma.cart.findUnique({
+        where: { userId },
+      });
+
+      if (!cart) {
+        cart = await prisma.cart.create({
+          data: { userId },
+        });
+      }
+
+      // Remove any permanently deleted items if needed
+      await prisma.cartItem.deleteMany({
+        where: {
+          cartId: cart.id,
+          deletedAt: { not: null },
+        },
+      });
+
+      res.status(200).json(
+        responseBuilder(200, "Cart refreshed successfully", {
+          cartId: cart.id,
         })
       );
     } catch (error) {

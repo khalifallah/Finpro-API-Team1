@@ -174,6 +174,7 @@ export class OAuthService implements IOAuthService {
           ...basePermissions,
           "manage_store",
           "manage_products",
+          "manage_orders",
           "view_analytics",
         ];
       case UserRole.SUPER_ADMIN:
@@ -181,6 +182,7 @@ export class OAuthService implements IOAuthService {
           ...basePermissions,
           "manage_users",
           "manage_all_stores",
+          "manage_orders",
           "system_config",
         ];
       default:

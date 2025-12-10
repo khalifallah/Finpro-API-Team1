@@ -3,6 +3,12 @@ import yup from "../libs/yup";
 export const createOrderSchema = yup.object().shape({
   userAddressId: yup.number().required("Shipping address is required"),
   shippingMethod: yup.string().required("Shipping method is required"),
+  storeId: yup.number().required("Store ID is required"),
+  cartItemIds: yup
+    .array()
+    .of(yup.number())
+    .min(1, "Select at least one item to checkout")
+    .required("Cart items are required"),
   voucherCode: yup.string().optional(),
   notes: yup.string().max(500).optional(),
 });

@@ -26,6 +26,7 @@ export class EmailService implements IEmailService {
     expiredVerification: HandlebarsTemplateDelegate;
     referralReward: HandlebarsTemplateDelegate;
     welcomeDiscount: HandlebarsTemplateDelegate;
+    orderStatus: HandlebarsTemplateDelegate;
   };
 
   constructor() {
@@ -39,6 +40,7 @@ export class EmailService implements IEmailService {
       expiredVerification: this.loadTemplate("expired-verification.hbs"),
       referralReward: this.loadTemplate("referral-reward.hbs"),
       welcomeDiscount: this.loadTemplate("welcome-discount.hbs"),
+      orderStatus: this.loadTemplate("order-status.hbs"),
     };
   }
 
@@ -54,27 +56,14 @@ export class EmailService implements IEmailService {
     }
   }
 
-  // Helper method to get logo as base64 with transparent background
-  private getLogoBase64(): string {
-    try {
-      const logoPath = path.join(
-        __dirname,
-        "/../../public/Beyond_Market_compressed.png"
-      );
-      const logoBuffer = fs.readFileSync(logoPath);
-      return logoBuffer.toString("base64");
-    } catch (error) {
-      console.warn("Logo not found, using text brand instead");
-      return "";
-    }
-  }
-
   // Helper method to get logo HTML
   private getLogoHtml(): string {
-    const logoBase64 = this.getLogoBase64();
-    return logoBase64
-      ? `<img src="data:image/png;base64,${logoBase64}" alt="Grocery App" style="color: black; max-width: 200px; margin-bottom: 20px; background: transparent;">`
-      : `<h1 style="color: #9ec79fff; margin-bottom: 20px;">🛒 Grocery App</h1>`;
+    // 👇 Ini URL yang baru saja kamu dapatkan dari terminal
+    const logoUrl =
+      "https://res.cloudinary.com/drennud1p/image/upload/v1764951133/assets/app-logo.png";
+
+    // Kita gunakan tag <img> biasa dengan src URL online
+    return `<img src="${logoUrl}" alt="Grocery App" style="max-width: 200px; margin-bottom: 20px; display: block; margin-left: auto; margin-right: auto;">`;
   }
 
   async sendPasswordResetEmail(email: string, token: string): Promise<void> {
@@ -237,6 +226,50 @@ export class EmailService implements IEmailService {
     } catch (emailError) {
       console.error("Error sending welcome discount email:", emailError);
       throw emailError;
+    }
+  }
+
+  async sendOrderStatusEmail(
+    to: string,
+    userName: string,
+    orderId: number,
+    totalAmount: number,
+    status: string,
+    subject: string,
+    message: string
+  ): Promise<void> {
+    // Link ke detail order di frontend (Sesuaikan CLIENT_URL kamu)
+    const orderDetailLink = `${CLIENT_URL}/user/orders/${orderId}`;
+
+    // Format mata uang (Optional, biar rapi Rp 150.000)
+    const formattedAmount = new Intl.NumberFormat("id-ID").format(totalAmount);
+
+    console.log(`Sending order status email (${status}) to ${to}`);
+
+    try {
+      const html = this.templates.orderStatus({
+        logoHtml: this.getLogoHtml(),
+        subject: subject,
+        title: subject,
+        userName: userName,
+        message: message,
+        orderId: orderId,
+        totalAmount: formattedAmount,
+        status: status, // PROCESSING / SHIPPED / REJECTED
+        orderDetailLink: orderDetailLink,
+      });
+
+      await Transporter.sendMail({
+        from: `Grocery App <${NODEMAILER_USER}>`,
+        to: to,
+        subject: `Update Pesanan #${orderId}: ${subject}`,
+        html: html,
+      });
+
+      console.log(`Order status email successfully sent to ${to}`);
+    } catch (emailError) {
+      console.error("Error sending order status email:", emailError);
+      // Jangan throw error agar tidak membatalkan proses update order di controller
     }
   }
 }

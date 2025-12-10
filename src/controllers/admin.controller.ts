@@ -12,13 +12,40 @@ export const getAllUsers = async (
   next: NextFunction
 ) => {
   try {
-    const users = await userService.getAllUsers();
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = req.query.search as string;
+    const role = req.query.role as string;
+
+    console.log("📋 getAllUsers called:", { page, limit, search, role });
+
+    // ✅ Validasi input
+    if (page < 1 || limit < 1) {
+      return res.status(400).json(
+        responseBuilder(400, "Invalid pagination parameters", {})
+      );
+    }
+
+    const { users, total } = await userService.getAllUsers(
+      page,
+      limit,
+      search,
+      role
+    );
+
+    console.log("✅ Returning users:", { count: users.length, total });
+
     res.status(200).json(
       responseBuilder(200, "Users retrieved successfully", {
         users,
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       })
     );
   } catch (err) {
+    console.error("❌ getAllUsers error:", err);
     next(err);
   }
 };
@@ -36,6 +63,7 @@ export const getStoreAdmins = async (
       })
     );
   } catch (err) {
+    console.error("❌ getStoreAdmins error:", err);
     next(err);
   }
 };
@@ -46,13 +74,17 @@ export const createStoreAdmin = async (
   next: NextFunction
 ) => {
   try {
-    const user = await userService.createStoreAdmin(req.body);
+    const user = await userService.createStoreAdmin({
+      ...req.body,
+      role: req.body.role || "STORE_ADMIN",
+    });
     res.status(201).json(
-      responseBuilder(201, "Store admin created successfully", {
+      responseBuilder(201, "User created successfully", {
         user,
       })
     );
   } catch (err) {
+    console.error("❌ createStoreAdmin error:", err);
     next(err);
   }
 };
@@ -73,6 +105,7 @@ export const updateUser = async (
       })
     );
   } catch (err) {
+    console.error("❌ updateUser error:", err);
     next(err);
   }
 };
@@ -84,47 +117,11 @@ export const deleteUser = async (
 ) => {
   try {
     await userService.deleteUser(parseInt(req.params.id));
-    res.status(204).send();
-  } catch (err) {
-    next(err);
-  }
-};
-
-// New function to get users with store information
-export const getUsersWithStores = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const users = await userService.getAllUsers();
-
-    // Enhance with store information
-    const enhancedUsers = await Promise.all(
-      users.map(async (user) => {
-        if (user.storeId) {
-          const store = await storeService.getStoreById(user.storeId);
-          return {
-            ...user,
-            store: store
-              ? {
-                  id: store.id,
-                  name: store.name,
-                  address: store.address,
-                }
-              : null,
-          };
-        }
-        return { ...user, store: null };
-      })
-    );
-
     res.status(200).json(
-      responseBuilder(200, "Users with store info retrieved successfully", {
-        users: enhancedUsers,
-      })
+      responseBuilder(200, "User deleted successfully", {})
     );
   } catch (err) {
+    console.error("❌ deleteUser error:", err);
     next(err);
   }
 };

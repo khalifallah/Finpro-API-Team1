@@ -97,7 +97,8 @@ export interface CreateUserRequest {
 export interface UpdateUserRequest {
   fullName?: string;
   email?: string;
-  role?: UserRole;
+  password?: string; // added by Gerald
+  role?: string;
   storeId?: number | null;
 }
 

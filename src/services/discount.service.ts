@@ -170,6 +170,19 @@ export const getDiscountUsages = async (discountRuleId: number): Promise<Discoun
     try {
         return await prisma.discountUsage.findMany({
             where: { discountRuleId },
+            include: {
+                order: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                email: true
+                            }
+                        }
+                    }
+                }
+            }
         });
     } catch (err: any) {
         throw new Error(`Failed to fetch discount usages: ${err.message}`);

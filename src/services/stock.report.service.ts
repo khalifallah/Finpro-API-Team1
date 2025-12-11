@@ -54,7 +54,7 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
       return map;
     }, {} as Record<number, number>);
 
-    // ✅ Map with all required fields
+    // PATCH: Map with all required fields
     return Object.values(grouped).map(s => ({
       productId: s.productId,
       productName: s.productName,
@@ -66,7 +66,6 @@ export const getStockSummary = async (query: StockReportQuery, userStoreId?: num
       storeId: s.storeId || finalStoreId || null,
     }));
   } catch (error) {
-    console.error('Error in getStockSummary:', error);
     throw new AppError("Failed to fetch stock summary", 500);
   }
 };
@@ -89,7 +88,7 @@ export const getStockDetail = async (query: StockReportQuery, userStoreId?: numb
       orderBy: { createdAt: 'desc' },
     });
 
-    // ✅ Map with all required fields
+    // PATCH: Map with all required fields
     return details.map(d => ({
       productId: d.productStock.productId,
       productName: d.productStock.product.name,
@@ -102,7 +101,6 @@ export const getStockDetail = async (query: StockReportQuery, userStoreId?: numb
       storeId: d.productStock.storeId,
     }));
   } catch (error) {
-    console.error('Error in getStockDetail:', error);
     throw new AppError("Failed to fetch stock detail", 500);
   }
 };

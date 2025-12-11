@@ -5,7 +5,6 @@ import { getStockSummary, getStockDetail } from "../services/stock.report.servic
 const getUserStoreId = (req: Request): number | undefined => {
   try {
     const payload = (req as any).jwtPayload;  // pakai req.jwtPayload
-    console.log("📌 JWT Payload:", payload);
     
     if (payload?.storeId) return payload.storeId;
     if (payload?.store?.id) return payload.store.id;

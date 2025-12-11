@@ -18,14 +18,14 @@ export const getMonthlySales = async (query: SalesReportQuery, userStoreId?: num
       include: { orderItems: true },
     });
 
-    // ✅ Calculate correctly
+    // PATCH: Calculate correctly
     const totalSales = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
     const totalTransactions = orders.length;
     const totalQuantity = orders.reduce((sum, order) => {
       return sum + (order.orderItems?.reduce((q, item) => q + (item.quantity || 0), 0) || 0);
     }, 0);
 
-    // ✅ Return as array dengan single object
+    // PATCH: Return as array dengan single object
     return [{
       month,
       year,
@@ -73,7 +73,7 @@ export const getSalesByCategory = async (query: SalesReportQuery, userStoreId?: 
       return acc;
     }, {} as Record<number, any>);
 
-    // ✅ Map with all required fields
+    // PATCH: Map with all required fields
     return Object.values(grouped).map(s => ({
       categoryId: s.categoryId,
       categoryName: s.categoryName,
@@ -122,7 +122,7 @@ export const getSalesByProduct = async (query: SalesReportQuery, userStoreId?: n
       return acc;
     }, {} as Record<number, any>);
 
-    // ✅ Map with all required fields
+    // PATCH: Map with all required fields
     return Object.values(grouped).map(s => ({
       productId: s.productId,
       productName: s.productName,

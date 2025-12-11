@@ -17,9 +17,7 @@ export const getAllUsers = async (
     const search = req.query.search as string;
     const role = req.query.role as string;
 
-    console.log("📋 getAllUsers called:", { page, limit, search, role });
-
-    // ✅ Validasi input
+    // Validasi input
     if (page < 1 || limit < 1) {
       return res.status(400).json(
         responseBuilder(400, "Invalid pagination parameters", {})
@@ -33,8 +31,6 @@ export const getAllUsers = async (
       role
     );
 
-    console.log("✅ Returning users:", { count: users.length, total });
-
     res.status(200).json(
       responseBuilder(200, "Users retrieved successfully", {
         users,
@@ -45,7 +41,6 @@ export const getAllUsers = async (
       })
     );
   } catch (err) {
-    console.error("❌ getAllUsers error:", err);
     next(err);
   }
 };
@@ -63,7 +58,6 @@ export const getStoreAdmins = async (
       })
     );
   } catch (err) {
-    console.error("❌ getStoreAdmins error:", err);
     next(err);
   }
 };
@@ -84,7 +78,6 @@ export const createStoreAdmin = async (
       })
     );
   } catch (err) {
-    console.error("❌ createStoreAdmin error:", err);
     next(err);
   }
 };
@@ -105,7 +98,6 @@ export const updateUser = async (
       })
     );
   } catch (err) {
-    console.error("❌ updateUser error:", err);
     next(err);
   }
 };
@@ -121,7 +113,6 @@ export const deleteUser = async (
       responseBuilder(200, "User deleted successfully", {})
     );
   } catch (err) {
-    console.error("❌ deleteUser error:", err);
     next(err);
   }
 };
@@ -132,13 +123,11 @@ export const getAllStores = async (
   next: NextFunction
 ) => {
   try {
-    // ✅ Use getStores dengan query kosong (akan return semua stores)
+    // Use getStores dengan query kosong (akan return semua stores)
     const result = await storeService.getStores({
       page: 1,
       limit: 1000, // Limit besar untuk get all
     });
-
-    console.log("✅ Returning stores:", result.stores.length);
 
     res.status(200).json(
       responseBuilder(200, "Stores retrieved successfully", {
@@ -149,7 +138,6 @@ export const getAllStores = async (
       })
     );
   } catch (err) {
-    console.error("❌ getAllStores error:", err);
     next(err);
   }
 };

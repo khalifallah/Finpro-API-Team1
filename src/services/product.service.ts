@@ -130,7 +130,6 @@ export const createProduct = async (
     });
     return transformProductToResponse(product as DBProduct, 0);
   } catch (err) {
-    console.error("Error creating product:", err);
     throw err;
   }
 };
@@ -275,7 +274,6 @@ export const addProductImages = async (
 
         return transformProductToResponse(updatedProduct as DBProduct, 0);
     } catch (err) {
-        console.error("Error adding product images:", err);
         throw err;
     }
 };
@@ -309,7 +307,6 @@ export const deleteProductImage = async (
             where: { id: imageId },
         });
     } catch (err: any) {
-        console.error("Error deleting product image:", err);
         throw err;
     }
 };

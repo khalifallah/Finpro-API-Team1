@@ -46,16 +46,10 @@ export const getDiscountById = async (req: Request, res: Response) => {
 
 export const createDiscountRule = async (req: Request, res: Response) => {
     try {
-        // ✅ DEBUG: Log JWT payload
-        console.log('🔐 JWT Payload:', req.jwtPayload);
-        console.log('📦 Request Body:', req.body);
         
         await discountRuleSchema.validate(req.body);
         const storeId = req.jwtPayload?.storeId;
-        
-        console.log('🏪 StoreId from JWT:', storeId);
-        console.log('🏪 StoreId from Body:', req.body.storeId);
-        
+                
         if (!storeId) {
             return res.status(400).json({ 
                 error: "Store ID is required for STORE_ADMIN !!",
@@ -66,7 +60,7 @@ export const createDiscountRule = async (req: Request, res: Response) => {
             });
         }
         
-        // ✅ FIX: Gunakan storeId dari body (dari frontend), bukan dari JWT
+        // Gunakan storeId dari body (dari frontend), bukan dari JWT
         const finalStoreId = req.body.storeId || storeId;
         
         const rule = await discountService.createDiscountRule(req.body, finalStoreId);

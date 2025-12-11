@@ -110,7 +110,7 @@ export const updateStock = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "Invalid stock ID" });
         }
 
-        // ✅ FIX: Better validation message
+        // PATCH: Better validation message
         const { quantityChange, reason, quantity } = req.body;
 
         if (quantityChange === undefined && quantity === undefined) {
@@ -149,7 +149,7 @@ export const updateStock = async (req: Request, res: Response) => {
         const adminId = req.jwtPayload!.id;
         const finalReason = reason || "Manual Stock Update";
         
-        // ✅ FIX: Pass correct payload
+        // PATCH: Pass correct payload
         const stock = await stockService.updateStock(
             stockId,
             { quantityChange, quantity, reason: finalReason },
@@ -159,7 +159,6 @@ export const updateStock = async (req: Request, res: Response) => {
         
         res.json(stock);
     } catch (err: any) {
-        console.error('Update stock error:', err);
         
         if (err.message.includes("deleted")) {
             return res.status(410).json({ error: err.message });

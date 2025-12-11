@@ -4,15 +4,13 @@ import { getMonthlySales, getSalesByCategory, getSalesByProduct } from "../servi
 // Get User Store ID dari jwtPayload
 const getUserStoreId = (req: Request): number | undefined => {
   try {
-    const payload = (req as any).jwtPayload;  // pakai req.jwtPayload
-    console.log("📌 JWT Payload:", payload);
+    const payload = (req as any).jwtPayload;  // pakai req.jwtPayload, untuk tangkap storeId
     
     if (payload?.storeId) return payload.storeId;
     if (payload?.store?.id) return payload.store.id;
     
     return undefined;
   } catch (error) {
-    console.error("Error getting store ID:", error);
     return undefined;
   }
 };
@@ -25,19 +23,11 @@ export const getMonthlySalesController = async (req: Request, res: Response) => 
     const { month, year, storeId } = validatedData;
     const userStoreId = getUserStoreId(req);
 
-    console.log("📊 Controller received validated data:");
-    console.log("  - month:", month, typeof month);
-    console.log("  - year:", year, typeof year);
-    console.log("  - storeId (query):", storeId, typeof storeId);
-    console.log("  - userStoreId:", userStoreId);
-
     const query = {
       month,
       year,
       storeId: storeId || userStoreId,
     };
-
-    console.log("📊 Final query object:", query);
 
     const data = await getMonthlySales(query, userStoreId);
 
@@ -47,7 +37,6 @@ export const getMonthlySalesController = async (req: Request, res: Response) => 
       data,
     });
   } catch (error: any) {
-    console.error("❌ Error in getMonthlySalesController:", error);
     return res.status(error.status || 500).json({
       status: error.status || 500,
       message: error.message || "Internal server error",

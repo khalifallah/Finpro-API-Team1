@@ -71,7 +71,7 @@ export const updateStock = async (
         throw new Error("Cannot update deleted stock");
     }
 
-    // ✅ FIX: Handle both input formats
+    // PATCH: Handle both input formats
     let newQuantity: number;
     let finalReason: string;
 

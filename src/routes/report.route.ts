@@ -26,9 +26,6 @@ const validateSalesQuery = async (req: Request, res: Response, next: NextFunctio
       storeId: req.query.storeId ? parseInt(req.query.storeId as string) : undefined,
     };
 
-    console.log("📌 Raw Query:", req.query);
-    console.log("📌 Converted Query:", queryData);
-
     // Validate dengan schema
     const validated = await salesReportSchema.validate(queryData, { abortEarly: false });
     
@@ -37,7 +34,6 @@ const validateSalesQuery = async (req: Request, res: Response, next: NextFunctio
     
     next();
   } catch (error: any) {
-    console.error("❌ Validation error:", error.errors || error.message);
     return res.status(400).json({
       status: 400,
       message: "Validation failed",
@@ -56,9 +52,6 @@ const validateStockQuery = async (req: Request, res: Response, next: NextFunctio
       productId: req.query.productId ? parseInt(req.query.productId as string) : undefined,
     };
 
-    console.log("📌 Raw Query:", req.query);
-    console.log("📌 Converted Query:", queryData);
-
     // Validate dengan schema
     const validated = await stockReportSchema.validate(queryData, { abortEarly: false });
     
@@ -67,7 +60,6 @@ const validateStockQuery = async (req: Request, res: Response, next: NextFunctio
     
     next();
   } catch (error: any) {
-    console.error("❌ Validation error:", error.errors || error.message);
     return res.status(400).json({
       status: 400,
       message: "Validation failed",

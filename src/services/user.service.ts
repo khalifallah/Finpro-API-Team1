@@ -8,7 +8,7 @@ import {
 
 const prisma = new PrismaClient();
 
-// ✅ COMPLETE: getAllUsers dengan Prisma query
+// PATCH: getAllUsers dengan Prisma query
 export const getAllUsers = async (
   page: number = 1,
   limit: number = 10,
@@ -31,7 +31,7 @@ export const getAllUsers = async (
     where.role = role;
   }
 
-  // ✅ Execute Prisma query dengan Promise.all()
+  // PATCH: Execute Prisma query dengan Promise.all()
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
@@ -57,7 +57,6 @@ export const getAllUsers = async (
     prisma.user.count({ where }),
   ]);
 
-  console.log("✅ getAllUsers result:", { users: users.length, total });
   return { users, total };
 };
 

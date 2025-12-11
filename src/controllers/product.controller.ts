@@ -133,7 +133,6 @@ export const addProductImages = async (req: Request, res: Response) => {
             data: product,
         });
     } catch (err: any) {
-        console.error("Error adding images:", err);
         
         if (err.message.includes("not found")) {
             return res.status(404).json({ error: err.message });
@@ -162,7 +161,6 @@ export const deleteProductImage = async (req: Request, res: Response) => {
             message: "Image deleted successfully",
         });
     } catch (err: any) {
-        console.error("Error deleting image:", err);
         
         if (err.message.includes("not found")) {
             return res.status(404).json({ error: err.message });

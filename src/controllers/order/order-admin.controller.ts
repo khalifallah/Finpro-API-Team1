@@ -15,6 +15,8 @@ export class OrderAdminController {
     this.emailService = new EmailService();
   }
 
+  // src/controllers/order/order.controller.ts (atau lokasi file controllermu)
+
   async getAllOrders(
     req: Request,
     res: Response,
@@ -25,23 +27,68 @@ export class OrderAdminController {
         throw new AppError("User not authenticated", 401);
       }
 
-      const { page = 1, limit = 10, status, storeId } = req.query;
+      // [UPDATE 1] Ambil parameter 'search' dari query
+      const { page = 1, limit = 10, status, storeId, search } = req.query;
       const skip = (Number(page) - 1) * Number(limit);
 
       const whereClause: any = {
         deletedAt: null,
       };
 
-      if (status && status !== "all") {
-        whereClause.status = status;
+      // [UPDATE 2] Logika Status "Pintar"
+      // Frontend mengirim "pending" untuk gabungan Payment & Confirmation
+      if (status) {
+        if (status === "pending") {
+          whereClause.status = {
+            in: ["PENDING_PAYMENT", "PENDING_CONFIRMATION"],
+          };
+        } else if (status !== "all") {
+          whereClause.status = status;
+        }
       }
 
+      // Logic Filter Store (Tetap sama)
       if (storeId && req.user.role === "SUPER_ADMIN") {
         whereClause.storeId = Number(storeId);
       } else if (req.user.role === "STORE_ADMIN" && req.user.storeId) {
         whereClause.storeId = req.user.storeId;
       }
 
+      // [UPDATE 3] Logika Search (Nama, Email, atau Order ID)
+      if (search) {
+        const searchStr = String(search);
+        const searchNum = Number(searchStr); // Coba ubah jadi angka
+
+        whereClause.OR = [
+          // 1. Cari berdasarkan Nama User
+          {
+            user: {
+              fullName: {
+                contains: searchStr,
+                mode: "insensitive", // Huruf besar/kecil dianggap sama
+              },
+            },
+          },
+          // 2. Cari berdasarkan Email
+          {
+            user: {
+              email: {
+                contains: searchStr,
+                mode: "insensitive",
+              },
+            },
+          },
+        ];
+
+        // 3. Cari berdasarkan Order ID (Hanya jika inputnya angka valid)
+        if (!isNaN(searchNum)) {
+          whereClause.OR.push({
+            id: searchNum,
+          });
+        }
+      }
+
+      // Query Database
       const orders = await prisma.order.findMany({
         where: whereClause,
         include: {

@@ -3,14 +3,31 @@ import { CreateCategoryRequest , UpdateCategoryRequest , CategoryResponse } from
 
 const prisma = new PrismaClient();
 
-export const getCategories = async (query: { page?: number; limit?: number; sortBy?: string; sortOrder?: string }): Promise<{ categories: CategoryResponse[]; total: number; }> => {
-    const { page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc" } = query;
+export const getCategories = async (query: { 
+  page?: number; 
+  limit?: number; 
+  sortBy?: string; 
+  sortOrder?: string;
+  search?: string; //ADD SEARCH
+}): Promise<{ categories: CategoryResponse[]; total: number; }> => {
+    const { page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc", search } = query;
     const skip = (page - 1) * limit;
-    const where = { deletedAt: null };
+    
+    // BUILD WHERE CLAUSE WITH SEARCH
+    const where: any = { deletedAt: null };
+    
+    if (search && search.trim() !== '') {
+      where.name = {
+        contains: search,
+        mode: 'insensitive', // Case-insensitive search
+      };
+    }
 
     const categories = await prisma.category.findMany({
         where,
-        skip, take: limit, orderBy: { [sortBy]: sortOrder }
+        skip, 
+        take: limit, 
+        orderBy: { [sortBy]: sortOrder }
     });
     const total = await prisma.category.count({ where });
     return { categories, total };
@@ -62,7 +79,12 @@ export const deleteCategory = async (id: number) : Promise<void> => {
     }
 };
 
-export const getDeletedCategories = async (query: { page?: number; limit?: number; sortBy?: string; sortOrder?: string })
+export const getDeletedCategories = async (query: { 
+  page?: number; 
+  limit?: number; 
+  sortBy?: string; 
+  sortOrder?: string 
+})
 : Promise<{ categories: CategoryResponse[]; total: number; }> => {
     const { page = 1, limit = 10, sortBy = "createdAt", sortOrder = "desc"} = query;
     const skip = (page -1) * limit;
@@ -70,7 +92,9 @@ export const getDeletedCategories = async (query: { page?: number; limit?: numbe
 
     const categories = await prisma.category.findMany({
         where,
-        skip, take: limit, orderBy: { [sortBy]: sortOrder }
+        skip, 
+        take: limit, 
+        orderBy: { [sortBy]: sortOrder }
     });
     const total = await prisma.category.count({where});
     return { categories, total };

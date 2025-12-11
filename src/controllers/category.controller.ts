@@ -5,7 +5,8 @@ const parseCategoryQuery = (query: any) => ({
     page: query.page ? parseInt(String(query.page), 10) : 1,
     limit: query.limit ? parseInt(String(query.limit), 10) : 10,
     sortBy: query.sortBy === "name" ? "name" : "createdAt",
-    sortOrder: query.sortOrder === "asc" ? "asc" : "desc"
+    sortOrder: query.sortOrder === "asc" ? "asc" : "desc",
+    search: query.search ? String(query.search).trim() : undefined, // ADD SEARCH
 });
 
 export const getCategories = async (req: Request , res: Response) => {

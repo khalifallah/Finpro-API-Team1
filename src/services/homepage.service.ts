@@ -128,7 +128,17 @@ export class HomepageService {
 
       // 5. Get footer data
       const footer = await this.getFooterData();
-
+      console.log(
+        "Product images:",
+        products.map((p) => ({
+          name: p.name,
+          imageCount: p.productImages.length,
+          images: p.productImages.map((img) => ({
+            id: img.id,
+            imageUrl: img.imageUrl,
+          })),
+        }))
+      );
       return {
         navigation: {
           categories: categories.map((cat) => ({
@@ -376,9 +386,13 @@ export class HomepageService {
       return {
         ...product,
         stock: stock || { quantity: 0 },
+        // Ensure images structure matches frontend expectations
+        images: product.productImages.map((img) => ({
+          id: img.id,
+          imageUrl: img.imageUrl,
+        })),
       };
     });
-
     return {
       products: productsWithStock,
       total,

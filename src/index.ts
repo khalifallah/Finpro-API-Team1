@@ -3,22 +3,22 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { json, urlencoded } from "express";
 
-import corsOptions from "../src/middlewares/express/cors";
+import corsOptions from "./middlewares/express/cors";
 
-import sampleRoute from "../src/routes/sample.route";
-import adminRoutes from "../src/routes/admin.route";
-import productRoutes from "../src/routes/product.route";
-import categoryRoutes from "../src/routes/category.route";
-import authRoutes from "../src/routes/auth.route";
-import orderRoutes from "../src/routes/order.route";
-import StockRoutes from "../src/routes/stock.route";
-import discountRoutes from "../src/routes/discount.route";
-import storeRoutes from "../src/routes/store.route";
-import homepageRoutes from "../src/routes/homepage.route";
-import cartRoute from "../src/routes/cart.route";
-import reportRoutes from "../src/routes/report.route";
+import sampleRoute from "./routes/sample.route";
+import adminRoutes from "./routes/admin.route";
+import productRoutes from "./routes/product.route";
+import categoryRoutes from "./routes/category.route";
+import authRoutes from "./routes/auth.route";
+import orderRoutes from "./routes/order.route";
+import StockRoutes from "./routes/stock.route";
+import discountRoutes from "./routes/discount.route";
+import storeRoutes from "./routes/store.route";
+import homepageRoutes from "./routes/homepage.route";
+import cartRoute from "./routes/cart.route";
+import reportRoutes from "./routes/report.route";
 
-import prisma from "../src/libs/prisma";
+import prisma from "./libs/prisma";
 
 /* ================== EXPRESS APP ================== */
 const app = express();

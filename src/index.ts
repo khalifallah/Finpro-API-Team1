@@ -16,4 +16,6 @@ if (process.env.NODE_ENV !== "production") {
     });
 }
 
-export default app.app;
+const expressApp = app.app;
+
+export default expressApp;

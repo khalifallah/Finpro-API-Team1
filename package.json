@@ -4,7 +4,7 @@
   "description": "Purwadhika 2025 Mini Project API Backend",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only api/index.ts",
     "build": "npx prisma generate && npx tsc",
     "start": "node dist/index.js",
     "postinstall": "npx prisma generate",

@@ -7,7 +7,7 @@ let isReady = false;
 async function bootstrap() {
   if (!isReady) {
     try {
-      await myApp.initialize(); // Konek DB
+      await myApp.initialize(); // Konek DB v7
       isReady = true;
       console.log("-> [Vercel] Database Connected");
     } catch (error) {

@@ -29,9 +29,15 @@ export default class App {
   public app: Application;
   private orderCleanupJob: OrderCleanupJob;
 
+  private setupMiddlewares(): void {
+    this.app.use(json());
+    this.app.use(urlencoded({ extended: true }));
+    this.app.use(cors(corsOptions));
+  }
+
   constructor() {
     this.app = express();
-    this.config();
+    this.setupMiddlewares();
     this.router();
     this.errorHandlers();
     this.orderCleanupJob = new OrderCleanupJob();

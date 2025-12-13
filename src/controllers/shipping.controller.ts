@@ -19,7 +19,7 @@ export class ShippingController {
         throw new AppError("User not authenticated", 401);
       }
 
-      const { addressId, weight } = req.body;
+      const { addressId, weight, storeId } = req.body; // Add storeId
 
       if (!addressId) {
         throw new AppError("Address ID is required", 400);
@@ -31,12 +31,20 @@ export class ShippingController {
         req.user.id
       );
 
-      // Cari store terdekat
-      const nearestStore = await shippingService.findNearestStore(address);
+      // *** FIX: Use provided storeId or find nearest ***
+      let selectedStore;
+      if (storeId) {
+        // Use the provided store
+        selectedStore = await shippingService.getStoreById(storeId);
+      } else {
+        // Cari store terdekat jika tidak ada storeId
+        const nearestStore = await shippingService.findNearestStore(address);
+        selectedStore = nearestStore.store;
+      }
 
       // Hitung shipping cost
       const shippingResult = await shippingService.calculateShippingForCheckout(
-        nearestStore.store.id,
+        selectedStore.id,
         address,
         weight || 1000 // Default weight 1kg
       );
@@ -45,7 +53,7 @@ export class ShippingController {
         responseBuilder(200, "Shipping cost calculated successfully", {
           shippingOptions: shippingResult.availableServices,
           distance: shippingResult.distance,
-          store: nearestStore.store,
+          store: selectedStore,
           address: address,
         })
       );
@@ -65,11 +73,12 @@ export class ShippingController {
         throw new AppError("User not authenticated", 401);
       }
 
-      const { addressId } = req.query;
+      const { addressId, storeId } = req.query; // Add storeId
 
       const preview = await checkoutService.getCheckoutPreview(
         req.user.id,
-        addressId ? Number(addressId) : undefined
+        addressId ? Number(addressId) : undefined,
+        storeId ? Number(storeId) : undefined // Pass storeId to service
       );
 
       res.status(200).json(
@@ -93,7 +102,7 @@ export class ShippingController {
         throw new AppError("User not authenticated", 401);
       }
 
-      const { addressId, shippingMethod } = req.body;
+      const { addressId, shippingMethod, storeId } = req.body; // Add storeId
 
       if (!addressId || !shippingMethod) {
         throw new AppError("Address ID and shipping method are required", 400);
@@ -103,13 +112,14 @@ export class ShippingController {
         userId: req.user.id,
         addressId,
         shippingMethod,
+        storeId, // Pass storeId if provided
       });
 
       res.status(200).json(
         responseBuilder(200, "Checkout validation successful", {
           isValid: validation.isValid,
           userAddress: validation.userAddress,
-          nearestStore: validation.nearestStore,
+          selectedStore: validation.selectedStore,
           shippingCost: validation.shippingCost,
           distance: validation.distance,
           subtotal: validation.subtotal,

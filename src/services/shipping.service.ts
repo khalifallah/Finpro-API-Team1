@@ -273,65 +273,82 @@ export class ShippingService {
     totalShippingCost: number;
     distance: number;
   }> {
-    // Dapatkan store information
-    const store = await prisma.store.findUnique({
-      where: { id: storeId },
-    });
+    try {
+      // Dapatkan store information
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+      });
 
-    if (!store) {
-      throw new AppError("Store not found", 404);
-    }
-
-    // Hitung jarak
-    const distance = this.calculateDistance(
-      {
-        latitude: Number(userAddress.latitude),
-        longitude: Number(userAddress.longitude),
-      },
-      {
-        latitude: Number(store.latitude),
-        longitude: Number(store.longitude),
+      if (!store) {
+        throw new AppError("Store not found", 404);
       }
-    );
 
-    // Dapatkan konfigurasi shipping dari store
-    const shippingServices = await this.getStoreShippingServices(storeId);
-
-    // Filter services berdasarkan jarak maksimum
-    const availableServices = shippingServices.filter(
-      (service) => !service.maxDistance || distance <= service.maxDistance
-    );
-
-    if (availableServices.length === 0) {
-      throw new AppError(
-        "No shipping service available for this distance",
-        400
-      );
-    }
-
-    // Jika ada selected service, validasi
-    let selectedServiceData = null;
-    if (selectedService) {
-      selectedServiceData = availableServices.find(
-        (service) => service.serviceCode === selectedService
+      // Hitung jarak antara alamat user dan store yang dipilih
+      const distance = this.calculateDistance(
+        {
+          latitude: Number(userAddress.latitude),
+          longitude: Number(userAddress.longitude),
+        },
+        {
+          latitude: Number(store.latitude),
+          longitude: Number(store.longitude),
+        }
       );
 
-      if (!selectedServiceData) {
-        throw new AppError("Selected shipping service not available", 400);
+      // Dapatkan konfigurasi shipping dari store yang dipilih
+      const shippingServices = await this.getStoreShippingServices(storeId);
+
+      // Check if shipping services exist
+      if (shippingServices.length === 0) {
+        console.warn(`No shipping services configured for store ${storeId}`);
+        throw new AppError(
+          "No shipping services available for the selected store",
+          400
+        );
       }
+
+      // Filter services berdasarkan jarak maksimum
+      const availableServices = shippingServices.filter(
+        (service) => !service.maxDistance || distance <= service.maxDistance
+      );
+
+      if (availableServices.length === 0) {
+        throw new AppError(
+          "No shipping services available for this distance",
+          400
+        );
+      }
+
+      // Jika ada selected service, validasi
+      let selectedServiceData = null;
+      if (selectedService) {
+        selectedServiceData = availableServices.find(
+          (service) => service.serviceCode === selectedService
+        );
+
+        if (!selectedServiceData) {
+          throw new AppError("Selected shipping service not available", 400);
+        }
+      }
+
+      // Hitung total shipping cost dengan weight factor
+      const totalShippingCost = selectedServiceData
+        ? Math.round(selectedServiceData.cost * (weight / 1000))
+        : Math.round(availableServices[0].cost * (weight / 1000));
+
+      return {
+        availableServices,
+        selectedService: selectedServiceData,
+        totalShippingCost,
+        distance,
+      };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      console.error("Shipping calculation error:", error);
+      throw new AppError("Failed to calculate shipping", 500);
     }
-
-    // Hitung total shipping cost dengan weight factor
-    const totalShippingCost = selectedServiceData
-      ? Math.round(selectedServiceData.cost * (weight / 1000))
-      : Math.round(availableServices[0].cost * (weight / 1000));
-
-    return {
-      availableServices,
-      selectedService: selectedServiceData,
-      totalShippingCost,
-      distance,
-    };
   }
 
   // 8. Get nearest store to user address

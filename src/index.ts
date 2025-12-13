@@ -1,16 +1,23 @@
 import App from "./app";
 
-const mainApp = new App();
+const myApp = new App();
 
-console.log("-> Initializing App for Vercel...");
+let isReady = false;
 
-if (process.env.NODE_ENV !== "production") {
-  mainApp.initialize().then(() => {
-    mainApp.start();
-  });
-} else {
-  mainApp.initialize();
+async function bootstrap() {
+  if (!isReady) {
+    try {
+      await myApp.initialize(); // Konek DB
+      isReady = true;
+      console.log("-> [Vercel] Database Connected");
+    } catch (error) {
+      console.error("-> [Vercel] DB Connection Failed", error);
+    }
+  }
 }
 
-const app = mainApp.app;
-export default app;
+export default async (req: any, res: any) => {
+  await bootstrap();
+
+  return myApp.app(req, res);
+};

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyJWT } from "../libs/jwt";
-import { UserRole } from "../generated/prisma-client";
+import { UserRole } from "@prisma/client";
 import AppError from "../errors/app.error";
 
 // Middleware untuk admin (store admin dan super admin)

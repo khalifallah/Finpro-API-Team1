@@ -3,7 +3,7 @@ import prisma from "../../libs/prisma";
 import AppError from "../../errors/app.error";
 import { responseBuilder } from "../../utils/response.builder";
 import { OrderCancellationService } from "../../services/order/order-cancellation.service";
-import { OrderStatus, PaymentStatus } from "../../generated/prisma-client";
+import { OrderStatus, PaymentStatus } from "@prisma/client";
 import { EmailService } from "../../services/email.service";
 
 export class OrderAdminController {

@@ -1,188 +1,219 @@
-import { PrismaClient } from "../generated/prisma-client";
-import { CreateStockRequest , UpdateStockRequest, StockResponse , StockJournalResponse, StockQuery } from "../types/stock.types";
-
-const prisma = new PrismaClient();
+import prisma from "../libs/prisma";
+import {
+  CreateStockRequest,
+  UpdateStockRequest,
+  StockResponse,
+  StockJournalResponse,
+  StockQuery,
+} from "../types/stock.types";
 
 // Helper function to map Prisma Stock to StockResponse
-const transformStockToResponse = (stock: any) : StockResponse => ({
-    id: stock.id,
-    productId: stock.productId,
-    storeId: stock.storeId,
-    quantity: stock.quantity,
-    product: stock.product,
-    store: stock.store,
-    createdAt: stock.createdAt,
-    updatedAt: stock.updatedAt,
+const transformStockToResponse = (stock: any): StockResponse => ({
+  id: stock.id,
+  productId: stock.productId,
+  storeId: stock.storeId,
+  quantity: stock.quantity,
+  product: stock.product,
+  store: stock.store,
+  createdAt: stock.createdAt,
+  updatedAt: stock.updatedAt,
 });
 
 // Get stocks with pagination/filtering/sorting
-export const getStocks = async (query: StockQuery , userStoreId?: number): Promise<{stocks: StockResponse[]; total: number}> => {
-    const {storeId = userStoreId, productId, page = 1, limit = 10, sortBy = "createdAt" , sortOrder = "desc" } = query;
-    const skip = (page -1) * limit;
-    const where : any = {deletedAt: null};
+export const getStocks = async (
+  query: StockQuery,
+  userStoreId?: number
+): Promise<{ stocks: StockResponse[]; total: number }> => {
+  const {
+    storeId = userStoreId,
+    productId,
+    page = 1,
+    limit = 10,
+    sortBy = "createdAt",
+    sortOrder = "desc",
+  } = query;
+  const skip = (page - 1) * limit;
+  const where: any = { deletedAt: null };
 
-    if (storeId) where.storeId = storeId;
-    if (productId) where.productId = productId;
+  if (storeId) where.storeId = storeId;
+  if (productId) where.productId = productId;
 
-    const stocks = await prisma.productStock.findMany({
-        where,
-        include: {product: true, store: true},
-        skip, take: limit, orderBy: { [sortBy]: sortOrder },
-    });
-    const total = await prisma.productStock.count({where});
-    return {stocks: stocks.map(transformStockToResponse), total};
+  const stocks = await prisma.productStock.findMany({
+    where,
+    include: { product: true, store: true },
+    skip,
+    take: limit,
+    orderBy: { [sortBy]: sortOrder },
+  });
+  const total = await prisma.productStock.count({ where });
+  return { stocks: stocks.map(transformStockToResponse), total };
 };
 
 // GET Stock by ID
-export const getStockById = async (id: number): Promise<StockResponse | null> => {
-    const stock = await prisma.productStock.findUnique({
-        where: {id},
-        include: {product: true, store: true},
-    });
-    
-    if (!stock || stock.deletedAt !== null) {
-        return null;
-    }
-    return transformStockToResponse(stock);
+export const getStockById = async (
+  id: number
+): Promise<StockResponse | null> => {
+  const stock = await prisma.productStock.findUnique({
+    where: { id },
+    include: { product: true, store: true },
+  });
+
+  if (!stock || stock.deletedAt !== null) {
+    return null;
+  }
+  return transformStockToResponse(stock);
 };
 
 // Create new stock entry (super admin only, as it sets store)
-export const createStock = async (data: CreateStockRequest): Promise<StockResponse> => {
-    const stock = await prisma.productStock.create({
-        data,
-        include: {product: true, store: true},
-    });
-    return transformStockToResponse(stock);
+export const createStock = async (
+  data: CreateStockRequest
+): Promise<StockResponse> => {
+  const stock = await prisma.productStock.create({
+    data,
+    include: { product: true, store: true },
+  });
+  return transformStockToResponse(stock);
 };
 
 // Update stock: Create journal entry and update quantity
 // Refactor: Handle both quantityChange (from journal) and direct quantity update
 export const updateStock = async (
-    id: number,
-    data: UpdateStockRequest | { quantityChange?: number; reason?: string },
-    adminId: number,
-    reason?: string
+  id: number,
+  data: UpdateStockRequest | { quantityChange?: number; reason?: string },
+  adminId: number,
+  reason?: string
 ): Promise<StockResponse> => {
-    const existingStock = await prisma.productStock.findUnique({ where: { id } });
+  const existingStock = await prisma.productStock.findUnique({ where: { id } });
 
-    if (!existingStock) throw new Error("Stock not found");
+  if (!existingStock) throw new Error("Stock not found");
 
-    if (existingStock.deletedAt !== null) {
-        throw new Error("Cannot update deleted stock");
+  if (existingStock.deletedAt !== null) {
+    throw new Error("Cannot update deleted stock");
+  }
+
+  // PATCH: Handle both input formats
+  let newQuantity: number;
+  let finalReason: string;
+
+  // Format 1: { quantityChange, reason } - from journal update
+  if ("quantityChange" in data && data.quantityChange !== undefined) {
+    const quantityChange = data.quantityChange;
+    newQuantity = existingStock.quantity + quantityChange;
+    finalReason = data.reason || reason || "Manual Stock Update";
+
+    // Validate new quantity
+    if (newQuantity < 0) {
+      throw new Error("Quantity must be a non-negative integer");
     }
+  }
+  // Format 2: { quantity } - direct update
+  else if ("quantity" in data && data.quantity !== undefined) {
+    newQuantity = data.quantity;
+    finalReason = reason || "Manual Stock Update";
 
-    // PATCH: Handle both input formats
-    let newQuantity: number;
-    let finalReason: string;
-
-    // Format 1: { quantityChange, reason } - from journal update
-    if ('quantityChange' in data && data.quantityChange !== undefined) {
-        const quantityChange = data.quantityChange;
-        newQuantity = existingStock.quantity + quantityChange;
-        finalReason = data.reason || reason || "Manual Stock Update";
-
-        // Validate new quantity
-        if (newQuantity < 0) {
-            throw new Error("Quantity must be a non-negative integer");
-        }
+    if (newQuantity < 0) {
+      throw new Error("Quantity must be a non-negative integer");
     }
-    // Format 2: { quantity } - direct update
-    else if ('quantity' in data && data.quantity !== undefined) {
-        newQuantity = data.quantity;
-        finalReason = reason || "Manual Stock Update";
+  } else {
+    throw new Error("Invalid update data");
+  }
 
-        if (newQuantity < 0) {
-            throw new Error("Quantity must be a non-negative integer");
-        }
-    } else {
-        throw new Error("Invalid update data");
-    }
+  // Create journal entry
+  const quantityChange = newQuantity - existingStock.quantity;
+  await prisma.stockJournal.create({
+    data: {
+      productStockId: id,
+      adminId,
+      quantityChange,
+      reason: finalReason,
+    },
+  });
 
-    // Create journal entry
-    const quantityChange = newQuantity - existingStock.quantity;
-    await prisma.stockJournal.create({
-        data: {
-            productStockId: id,
-            adminId,
-            quantityChange,
-            reason: finalReason,
-        },
-    });
+  // Update stock quantity
+  const updatedStock = await prisma.productStock.update({
+    where: { id },
+    data: { quantity: newQuantity },
+    include: { product: true, store: true },
+  });
 
-    // Update stock quantity
-    const updatedStock = await prisma.productStock.update({
-        where: { id },
-        data: { quantity: newQuantity },
-        include: { product: true, store: true },
-    });
-
-    return transformStockToResponse(updatedStock);
+  return transformStockToResponse(updatedStock);
 };
 
 // Delete Stock (with confirmation)
-export const deleteStock = async (id: number, adminId: number): Promise<void> => {
-    try {
-        const existingStock = await prisma.productStock.findUnique({ where: { id } });
-        if (!existingStock) throw new Error("Stock not found");
+export const deleteStock = async (
+  id: number,
+  adminId: number
+): Promise<void> => {
+  try {
+    const existingStock = await prisma.productStock.findUnique({
+      where: { id },
+    });
+    if (!existingStock) throw new Error("Stock not found");
 
-        // Log deletion as journal entry
-        await prisma.stockJournal.create({
-            data: {
-                productStockId: id,
-                adminId,
-                quantityChange: 0,
-                reason: "Stock Deleted"
-            }
-        });
+    // Log deletion as journal entry
+    await prisma.stockJournal.create({
+      data: {
+        productStockId: id,
+        adminId,
+        quantityChange: 0,
+        reason: "Stock Deleted",
+      },
+    });
 
-        // Soft delete
-        await prisma.productStock.update({
-            where: { id },
-            data: { deletedAt: new Date() }
-        });
-    } catch (err: any) {
-        throw err;
-    }
+    // Soft delete
+    await prisma.productStock.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  } catch (err: any) {
+    throw err;
+  }
 };
 
-
 // Restore deleted stock
-export const restoreStock = async (id: number, adminId: number): Promise<StockResponse> => {
-    try {
-        const existingStock = await prisma.productStock.findUnique({ where: { id } });
-        if (!existingStock) throw new Error("Stock not found");
+export const restoreStock = async (
+  id: number,
+  adminId: number
+): Promise<StockResponse> => {
+  try {
+    const existingStock = await prisma.productStock.findUnique({
+      where: { id },
+    });
+    if (!existingStock) throw new Error("Stock not found");
 
-        if (existingStock.deletedAt === null) {
-            throw new Error("Stock is not deleted");
-        }
-
-        // Log restoration as journal entry
-        await prisma.stockJournal.create({
-            data: {
-                productStockId: id,
-                adminId,
-                quantityChange: 0,
-                reason: "Stock Restored"
-            }
-        });
-
-        // Restore by setting deletedAt to null
-        const restoredStock = await prisma.productStock.update({
-            where: { id },
-            data: { deletedAt: null },
-            include: { product: true, store: true }
-        });
-        return transformStockToResponse(restoredStock);
-    } catch (err: any) {
-        throw err;
+    if (existingStock.deletedAt === null) {
+      throw new Error("Stock is not deleted");
     }
+
+    // Log restoration as journal entry
+    await prisma.stockJournal.create({
+      data: {
+        productStockId: id,
+        adminId,
+        quantityChange: 0,
+        reason: "Stock Restored",
+      },
+    });
+
+    // Restore by setting deletedAt to null
+    const restoredStock = await prisma.productStock.update({
+      where: { id },
+      data: { deletedAt: null },
+      include: { product: true, store: true },
+    });
+    return transformStockToResponse(restoredStock);
+  } catch (err: any) {
+    throw err;
+  }
 };
 
 // GET Journals for a stock
-export const getStockJournals = async (stockId: number): Promise<StockJournalResponse[]> => {
-    const journals = await prisma.stockJournal.findMany({
-        where: {productStockId: stockId},
-        include: {admin: {select: {id: true, fullName: true} } },
-    });
-    return journals as StockJournalResponse[];
+export const getStockJournals = async (
+  stockId: number
+): Promise<StockJournalResponse[]> => {
+  const journals = await prisma.stockJournal.findMany({
+    where: { productStockId: stockId },
+    include: { admin: { select: { id: true, fullName: true } } },
+  });
+  return journals as StockJournalResponse[];
 };

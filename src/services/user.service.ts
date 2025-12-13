@@ -1,12 +1,10 @@
-import { PrismaClient } from "../generated/prisma-client";
+import prisma from "../libs/prisma";
 import { hashPassword } from "../libs/bcrypt";
 import {
   CreateUserRequest,
   UpdateUserRequest,
   UserResponse,
 } from "../types/user.types";
-
-const prisma = new PrismaClient();
 
 // PATCH: getAllUsers dengan Prisma query
 export const getAllUsers = async (

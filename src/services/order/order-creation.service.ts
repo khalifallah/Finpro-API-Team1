@@ -90,7 +90,7 @@ export class OrderCreationService {
 
       const shippingResult =
         await this.shippingService.calculateShippingForCheckout(
-          store.id, // Gunakan toko yang dipilih user
+          data.storeId, // Use the storeId from request, not find nearest
           userAddress,
           totalWeight,
           data.shippingMethod

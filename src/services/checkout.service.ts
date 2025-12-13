@@ -9,6 +9,7 @@ export interface ICheckoutData {
   shippingMethod: string;
   voucherCode?: string;
   notes?: string;
+  storeId?: number;
 }
 
 export class CheckoutService {
@@ -23,7 +24,7 @@ export class CheckoutService {
   async validateCheckout(data: ICheckoutData): Promise<{
     isValid: boolean;
     userAddress: any;
-    nearestStore: any;
+    selectedStore: any; // Renamed from nearestStore for clarity
     shippingCost: number;
     distance: number;
     cartItems: any[];
@@ -74,14 +75,37 @@ export class CheckoutService {
         subtotal += item.product.defaultPrice * item.quantity;
       }
 
-      // 4. Cari store terdekat
-      const { store: nearestStore, distance } =
-        await this.shippingService.findNearestStore(userAddress);
+      // 4. Gunakan store yang dipilih jika ada, jika tidak cari store terdekat
+      let selectedStore;
+      let distance;
 
-      // 5. Hitung shipping cost
+      if (data.storeId) {
+        // Use the provided store
+        selectedStore = await this.shippingService.getStoreById(data.storeId);
+
+        // Hitung jarak ke store yang dipilih
+        distance = this.shippingService.calculateDistance(
+          {
+            latitude: Number(userAddress.latitude),
+            longitude: Number(userAddress.longitude),
+          },
+          {
+            latitude: Number(selectedStore.latitude),
+            longitude: Number(selectedStore.longitude),
+          }
+        );
+      } else {
+        // Cari store terdekat jika tidak ada storeId
+        const { store: nearestStore, distance: storeDistance } =
+          await this.shippingService.findNearestStore(userAddress);
+        selectedStore = nearestStore;
+        distance = storeDistance;
+      }
+
+      // 5. Hitung shipping cost untuk store yang dipilih
       const shippingResult =
         await this.shippingService.calculateShippingForCheckout(
-          nearestStore.id,
+          selectedStore.id,
           userAddress,
           totalWeight,
           data.shippingMethod
@@ -90,7 +114,7 @@ export class CheckoutService {
       return {
         isValid: true,
         userAddress,
-        nearestStore,
+        selectedStore, // Return the actual store used
         shippingCost: shippingResult.totalShippingCost,
         distance,
         cartItems: cart.cartItems,
@@ -122,6 +146,8 @@ export class CheckoutService {
         shippingMethod: data.shippingMethod,
         voucherCode: data.voucherCode,
         notes: data.notes,
+        storeId: validation.selectedStore.id,
+        cartItemIds: validation.cartItems.map((item) => item.id),
       };
 
       // Override shipping cost calculation dengan menggunakan yang sudah kita hitung
@@ -133,7 +159,7 @@ export class CheckoutService {
         shippingInfo: {
           cost: validation.shippingCost,
           distance: validation.distance,
-          store: validation.nearestStore,
+          store: validation.selectedStore,
           address: validation.userAddress,
         },
       };
@@ -146,7 +172,11 @@ export class CheckoutService {
     }
   }
 
-  async getCheckoutPreview(userId: number, addressId?: number): Promise<any> {
+  async getCheckoutPreview(
+    userId: number,
+    addressId?: number,
+    storeId?: number // Add storeId parameter
+  ): Promise<any> {
     try {
       // Dapatkan alamat user
       const userAddresses = await prisma.userAddress.findMany({
@@ -175,6 +205,7 @@ export class CheckoutService {
           cartItems: {
             where: {
               deletedAt: null, // Only include non-deleted items
+              storeId: storeId ? storeId : undefined, // Filter by storeId if provided
             },
             include: {
               product: {
@@ -220,17 +251,37 @@ export class CheckoutService {
       // Jika ada alamat, hitung shipping options
       let shippingOptions = [];
       let distance = 0;
-      let nearestStore = null;
+      let selectedStore = null;
 
       if (selectedAddress) {
-        const { store, distance: storeDistance } =
-          await this.shippingService.findNearestStore(selectedAddress);
-        nearestStore = store;
-        distance = storeDistance;
+        // *** FIX: Use provided storeId or find nearest ***
+        if (storeId) {
+          // Use the provided store
+          selectedStore = await this.shippingService.getStoreById(storeId);
 
+          // Calculate distance to the selected store
+          distance = this.shippingService.calculateDistance(
+            {
+              latitude: Number(selectedAddress.latitude),
+              longitude: Number(selectedAddress.longitude),
+            },
+            {
+              latitude: Number(selectedStore.latitude),
+              longitude: Number(selectedStore.longitude),
+            }
+          );
+        } else {
+          // Cari store terdekat jika tidak ada storeId
+          const { store: nearestStore, distance: storeDistance } =
+            await this.shippingService.findNearestStore(selectedAddress);
+          selectedStore = nearestStore;
+          distance = storeDistance;
+        }
+
+        // Hitung shipping options untuk store yang dipilih
         const shippingResult =
           await this.shippingService.calculateShippingForCheckout(
-            store.id,
+            selectedStore.id,
             selectedAddress,
             totalWeight
           );
@@ -247,8 +298,9 @@ export class CheckoutService {
         totalWeight,
         shippingOptions,
         distance,
-        nearestStore,
+        selectedStore, // Return the actual store being used
         requiresAddress: userAddresses.length === 0,
+        selectedStoreId: storeId || selectedStore?.id, // Include storeId for frontend
       };
     } catch (error) {
       console.error("Checkout preview error:", error);

@@ -8,6 +8,7 @@ export const calculateShippingSchema = yup.object().shape({
 export const validateCheckoutSchema = yup.object().shape({
   addressId: yup.number().required("Address ID is required"),
   shippingMethod: yup.string().required("Shipping method is required"),
+  storeId: yup.number().optional(), // Make storeId optional
 });
 
 export const shippingConfigSchema = yup.object().shape({

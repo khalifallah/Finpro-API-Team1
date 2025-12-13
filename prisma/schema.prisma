@@ -349,7 +349,7 @@ model CartItem {
   product Product @relation(fields: [productId], references: [id])
   store   Store   @relation(fields: [storeId], references: [id])
 
-  @@unique([cartId, productId], map: "cart_product")
+  @@unique([cartId, productId, storeId], map: "cart_product_store") // Add storeId to unique constraint
   @@map("cart_items")
 }
 

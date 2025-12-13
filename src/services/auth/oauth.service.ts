@@ -1,6 +1,6 @@
 import prisma from "../../libs/prisma";
 import { IGoogleUser, IOAuthService } from "../../types/user.types";
-import { UserRole } from "../../generated/prisma-client";
+import { UserRole } from "@prisma/client";
 import AppError from "../../errors/app.error";
 import { generateJWT } from "../../libs/jwt";
 

@@ -1,8 +1,6 @@
-import { PrismaClient } from "../generated/prisma-client";
+import prisma from "../libs/prisma";
 import { ShippingService } from "./shipping.service";
 import AppError from "../errors/app.error";
-
-const prisma = new PrismaClient();
 
 export interface HomepageData {
   navigation: {

@@ -3,7 +3,7 @@ import prisma from "../../libs/prisma";
 import { hashPassword, comparePassword } from "../../libs/bcrypt";
 import { generateVerificationToken, verifyJWT } from "../../libs/jwt";
 import { EmailService } from "../email.service";
-import { UserRole } from "../../generated/prisma-client";
+import { UserRole } from "@prisma/client";
 import AppError from "../../errors/app.error";
 import { processReferralRewards } from "./auth-referral.service";
 

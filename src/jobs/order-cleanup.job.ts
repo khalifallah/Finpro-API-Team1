@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import prisma from "../libs/prisma";
-import { OrderStatus } from "../generated/prisma-client";
+import { OrderStatus } from "@prisma/client";
 
 export class OrderCleanupJob {
   public start() {

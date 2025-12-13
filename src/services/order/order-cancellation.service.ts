@@ -1,6 +1,6 @@
 import prisma from "../../libs/prisma";
 import AppError from "../../errors/app.error";
-import { OrderStatus, PaymentStatus } from "../../generated/prisma-client";
+import { OrderStatus, PaymentStatus } from "@prisma/client";
 
 export interface CancelOrderData {
   orderId: number;

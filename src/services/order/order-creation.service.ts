@@ -2,11 +2,7 @@
 
 import prisma from "../../libs/prisma";
 import AppError from "../../errors/app.error";
-import {
-  OrderStatus,
-  PaymentMethod,
-  PaymentStatus,
-} from "../../generated/prisma-client";
+import { OrderStatus, PaymentMethod, PaymentStatus } from "@prisma/client";
 import { ShippingService } from "../shipping.service";
 
 export interface CreateOrderData {

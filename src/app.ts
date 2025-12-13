@@ -25,7 +25,7 @@ import cartRoute from "./routes/cart.route";
 import prisma from "./libs/prisma";
 import { OrderCleanupJob } from "./jobs/order-cleanup.job";
 
-export default class App {
+export class App {
   public app: Application;
   private orderCleanupJob: OrderCleanupJob;
 

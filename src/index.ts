@@ -1,4 +1,4 @@
-import App from "./app";
+import { App } from "./app";
 
 const myApp = new App();
 
@@ -7,7 +7,7 @@ let isReady = false;
 async function bootstrap() {
   if (!isReady) {
     try {
-      await myApp.initialize(); // Konek DB v7
+      await myApp.initialize();
       isReady = true;
       console.log("-> [Vercel] Database Connected");
     } catch (error) {

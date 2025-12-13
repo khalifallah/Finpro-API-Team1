@@ -1,4 +1,5 @@
 import App from "./app";
+import { Request, Response } from "express";
 
 const app = new App();
 
@@ -6,16 +7,17 @@ if (process.env.NODE_ENV !== "production") {
   app
     .initialize()
     .then(() => {
-      console.log("Database connected, starting server...");
-      app.start();
+      console.log("DB Connected (Local)");
     })
-    .catch((error) => {
-      console.error("Failed to initialize app:", error.message);
-      console.log("Starting server without database connection...");
-      app.start(); // Start server anyway for testing
-    });
+    .catch(console.error);
+}
+
+if (process.env.NODE_ENV !== "production") {
+  app.start();
 }
 
 const expressApp = app.app;
 
-export default expressApp;
+export default function handler(req: Request, res: Response) {
+  return expressApp(req, res);
+}

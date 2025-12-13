@@ -1,23 +1,16 @@
 import App from "./app";
-import { Request, Response } from "express";
 
-const app = new App();
+const mainApp = new App();
 
-if (process.env.NODE_ENV !== "production") {
-  app
-    .initialize()
-    .then(() => {
-      console.log("DB Connected (Local)");
-    })
-    .catch(console.error);
-}
+console.log("-> Initializing App for Vercel...");
 
 if (process.env.NODE_ENV !== "production") {
-  app.start();
+  mainApp.initialize().then(() => {
+    mainApp.start();
+  });
+} else {
+  mainApp.initialize();
 }
 
-const expressApp = app.app;
-
-export default function handler(req: Request, res: Response) {
-  return expressApp(req, res);
-}
+const app = mainApp.app;
+export default app;

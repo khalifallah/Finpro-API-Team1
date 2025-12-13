@@ -1,0 +1,52 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>{{subject}}</title>
+  </head>
+  <body
+    style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;"
+  >
+    <div
+      style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+    >
+
+      <div style="text-align: center; margin-bottom: 20px;">
+        {{{logoHtml}}}
+      </div>
+
+      <h2 style="color: #333333; text-align: center;">{{title}}</h2>
+
+      <p>Halo <strong>{{userName}}</strong>,</p>
+
+      <p>{{message}}</p>
+
+      <div
+        style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;"
+      >
+        <p style="margin: 5px 0;"><strong>Order ID:</strong> #{{orderId}}</p>
+        <p style="margin: 5px 0;"><strong>Total Pembayaran:</strong>
+          Rp
+          {{totalAmount}}</p>
+        <p style="margin: 5px 0;"><strong>Status Pesanan:</strong>
+          <span style="color: #007bff; font-weight: bold;">{{status}}</span></p>
+      </div>
+
+      <p>Anda dapat melihat detail pesanan Anda dengan mengklik tombol di bawah
+        ini:</p>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a
+          href="{{orderDetailLink}}"
+          style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"
+        >Lihat Detail Pesanan</a>
+      </div>
+
+      <p
+        style="color: #666; font-size: 12px; margin-top: 30px; text-align: center;"
+      >
+        Terima kasih telah berbelanja di Grocery App.<br />
+        Jika Anda memiliki pertanyaan, silakan hubungi customer service kami.
+      </p>
+    </div>
+  </body>
+</html>

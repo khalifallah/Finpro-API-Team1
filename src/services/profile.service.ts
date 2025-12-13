@@ -34,11 +34,9 @@ export class ProfileService {
           },
         },
       });
-
       if (!user) {
         throw new AppError("User not found", 404);
       }
-
       return {
         id: user.id,
         fullName: user.fullName,
@@ -73,10 +71,8 @@ export class ProfileService {
       if (!user) {
         throw new AppError("User not found", 404);
       }
-
       return await prisma.$transaction(async (tx) => {
         const updatePayload: any = {};
-
         // Handle profile photo upload
         if (file) {
           try {
@@ -86,7 +82,6 @@ export class ProfileService {
             throw new AppError("Failed to process profile photo", 400);
           }
         }
-
         // Handle full name update
         if (updateData.fullName && updateData.fullName !== user.fullName) {
           if (
@@ -100,14 +95,12 @@ export class ProfileService {
           }
           updatePayload.fullName = updateData.fullName;
         }
-
         // Handle email update with re-verification
         if (updateData.email && updateData.email !== user.email) {
           await this.handleEmailUpdate(userId, updateData.email, tx);
           updatePayload.email = updateData.email;
           updatePayload.emailVerifiedAt = null;
         }
-
         // Handle password change
         if (updateData.newPassword) {
           await this.handlePasswordChange(
@@ -255,19 +248,16 @@ export class ProfileService {
             },
           },
         });
-
         // Send verification email for new email
         const verificationToken = generateJWT({
           userId: updatedUser.id,
           email: updatedUser.email,
           type: "email_verification",
         });
-
         await emailService.sendVerificationEmail(
           updatedUser.email,
           verificationToken
         );
-
         return {
           id: updatedUser.id,
           fullName: updatedUser.fullName,
@@ -292,15 +282,36 @@ export class ProfileService {
     }
   }
 
-  // Request email verification
+  // Request email verification - FIXED VERSION
   async requestEmailVerification(userId: number): Promise<void> {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
+        include: {
+          socialAccounts: true,
+        },
       });
 
       if (!user) {
         throw new AppError("User not found", 404);
+      }
+
+      // Check if user is a Google user
+      const isGoogleUser = user.socialAccounts.some(
+        (account) => account.provider === "google"
+      );
+
+      if (isGoogleUser) {
+        // For Google users, their email is already verified by Google
+        // Just update the emailVerifiedAt if not already set
+        if (!user.emailVerifiedAt) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { emailVerifiedAt: new Date() },
+          });
+        }
+        // Don't send verification email for Google users
+        return;
       }
 
       if (user.emailVerifiedAt) {
@@ -313,7 +324,10 @@ export class ProfileService {
         type: "email_verification",
       });
 
+      console.log("Sending verification email to:", user.email);
+
       await emailService.sendVerificationEmail(user.email, verificationToken);
+      console.log("Verification email sent successfully");
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
@@ -332,7 +346,6 @@ export class ProfileService {
     const emailExists = await tx.user.findUnique({
       where: { email: newEmail },
     });
-
     if (emailExists) {
       throw new AppError("Email is already taken", 400);
     }
@@ -348,11 +361,9 @@ export class ProfileService {
       where: { id: userId },
       select: { passwordHash: true },
     });
-
     if (!user.passwordHash) {
       throw new AppError("Password change not available for social login", 400);
     }
-
     const isCurrentPasswordValid = await comparePassword(
       currentPassword,
       user.passwordHash
@@ -360,11 +371,9 @@ export class ProfileService {
     if (!isCurrentPasswordValid) {
       throw new AppError("Current password is incorrect", 400);
     }
-
     if (newPassword.length < 8) {
       throw new AppError("Password must be at least 8 characters long", 400);
     }
-
     const passwordRegex =
       /^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{8,}$/;
     if (!passwordRegex.test(newPassword)) {

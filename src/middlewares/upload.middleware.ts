@@ -60,3 +60,11 @@ export const uploadImages = multer({
     files: 5, // Max 5 files
   },
 }).array("images", 5);
+
+export const uploadPaymentProof = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 1024 * 1024, // 1MB sesuai brief
+  },
+}).single("file");

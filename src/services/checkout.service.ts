@@ -281,6 +281,13 @@ export class CheckoutService {
               if (!rule) continue;
 
               let itemDiscount = 0;
+              // Respect minimum purchase if defined on rule
+              if (rule.minPurchase && s.total < rule.minPurchase) {
+                // skip applying this rule for this item
+                s.discountAmount = 0;
+                continue;
+              }
+
               if (rule.type === "DIRECT_PERCENTAGE") {
                 itemDiscount = Math.min(
                   s.total * (rule.value! / 100),
@@ -289,9 +296,10 @@ export class CheckoutService {
               } else if (rule.type === "DIRECT_NOMINAL") {
                 itemDiscount = Math.min(rule.value || 0, s.total);
               } else if (rule.type === "BOGO") {
-                // Give one free item if customer buys at least 2
+                // Give one free item for every 2 items (buy 1 get 1)
                 if (s.quantity >= 2) {
-                  itemDiscount = s.price; // one unit free
+                  const freeUnits = Math.floor(s.quantity / 2);
+                  itemDiscount = freeUnits * (s.price || 0);
                 }
               }
 

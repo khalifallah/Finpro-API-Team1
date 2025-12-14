@@ -128,22 +128,35 @@ export class OrderCreationService {
           });
 
           let totalRuleDiscount = 0;
+          // Compute discounts per matching order item, respecting rule constraints
           for (const rule of applicableRules) {
+            const item = orderItems.find((oi) => oi.productId === rule.productId);
+            if (!item) continue;
+
+            const itemTotal = (item.priceAtPurchase || 0) * (item.quantity || 0);
+
+            // Respect minimum purchase amount on rule (if defined)
+            if (rule.minPurchase && itemTotal < rule.minPurchase) {
+              continue;
+            }
+
             let ruleAmount = 0;
             if (rule.type === "DIRECT_PERCENTAGE") {
               ruleAmount = Math.min(
-                subtotal * (rule.value! / 100),
+                itemTotal * (rule.value! / 100),
                 rule.maxDiscountAmount || Number.MAX_SAFE_INTEGER
               );
             } else if (rule.type === "DIRECT_NOMINAL") {
-              ruleAmount = rule.value || 0;
+              ruleAmount = Math.min(rule.value || 0, itemTotal);
             } else if (rule.type === "BOGO") {
-              const item = orderItems.find((oi) => oi.productId === rule.productId);
-              if (item && item.quantity >= 1) {
-                const freeQuantity = 1;
-                ruleAmount = freeQuantity * (item.priceAtPurchase || 0);
+              // Give one free unit for every two units (buy 1 get 1)
+              if ((item.quantity || 0) >= 2) {
+                const freeUnits = Math.floor((item.quantity || 0) / 2);
+                ruleAmount = freeUnits * (item.priceAtPurchase || 0);
               }
             }
+
+            if (ruleAmount <= 0) continue;
 
             // Record usage for this discount rule
             await tx.discountUsage.create({

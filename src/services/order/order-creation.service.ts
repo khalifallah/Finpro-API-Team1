@@ -122,6 +122,7 @@ export class OrderCreationService {
           const applicableRules = await tx.discountRule.findMany({
             where: {
               productId: { in: productIds },
+              storeId: store.id,
               is_active: true,
               deletedAt: null,
             },

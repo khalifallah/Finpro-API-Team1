@@ -252,12 +252,26 @@ export class CheckoutService {
       const productIds = cart.cartItems.map((i) => i.productId);
       let previewTotalDiscount = 0;
       if (productIds.length > 0) {
+        // Scope discount rules to the relevant store. Prefer provided `storeId`, otherwise try nearest store.
+        let discountStoreId = storeId;
+        if (!discountStoreId) {
+          try {
+            const { store: nearestStore } = await this.shippingService.findNearestStore(selectedAddress || userAddresses[0]);
+            discountStoreId = nearestStore?.id;
+          } catch (e) {
+            // ignore and fallback to no-store filter
+          }
+        }
+
+        const discountWhere: any = {
+          productId: { in: productIds },
+          is_active: true,
+          deletedAt: null,
+        };
+        if (discountStoreId) discountWhere.storeId = discountStoreId;
+
         const discountRules = await prisma.discountRule.findMany({
-          where: {
-            productId: { in: productIds },
-            is_active: true,
-            deletedAt: null,
-          },
+          where: discountWhere,
           include: { product: true },
         });
 

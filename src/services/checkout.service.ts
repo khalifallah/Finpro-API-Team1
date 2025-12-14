@@ -248,6 +248,60 @@ export class CheckoutService {
         });
       }
 
+      // Attach any active discount rules for the products in the cart (minimal info)
+      const productIds = cart.cartItems.map((i) => i.productId);
+      let previewTotalDiscount = 0;
+      if (productIds.length > 0) {
+        const discountRules = await prisma.discountRule.findMany({
+          where: {
+            productId: { in: productIds },
+            is_active: true,
+            deletedAt: null,
+          },
+          include: { product: true },
+        });
+
+        // Map discount info onto cartSummary items if there's a matching rule
+        for (const s of cartSummary) {
+          const rule = discountRules.find((r) => r.productId === s.productId);
+          if (rule) {
+            s.discount = {
+              id: rule.id,
+              description: rule.description,
+              type: rule.type,
+              value: rule.value,
+            };
+          }
+        }
+
+          // Compute discount amounts per item and total discount for preview
+            for (const s of cartSummary) {
+              if (!s.discount) continue;
+              const rule = discountRules.find((r) => r.id === s.discount.id);
+              if (!rule) continue;
+
+              let itemDiscount = 0;
+              if (rule.type === "DIRECT_PERCENTAGE") {
+                itemDiscount = Math.min(
+                  s.total * (rule.value! / 100),
+                  rule.maxDiscountAmount || Number.MAX_SAFE_INTEGER
+                );
+              } else if (rule.type === "DIRECT_NOMINAL") {
+                itemDiscount = Math.min(rule.value || 0, s.total);
+              } else if (rule.type === "BOGO") {
+                // Give one free item if customer buys at least 2
+                if (s.quantity >= 2) {
+                  itemDiscount = s.price; // one unit free
+                }
+              }
+
+              s.discountAmount = itemDiscount;
+              previewTotalDiscount += itemDiscount;
+            }
+
+            // attach total discount to be returned in preview (previewTotalDiscount variable)
+      }
+
       // Jika ada alamat, hitung shipping options
       let shippingOptions = [];
       let distance = 0;
@@ -289,6 +343,21 @@ export class CheckoutService {
         shippingOptions = shippingResult.availableServices;
       }
 
+      const previewDiscount = previewTotalDiscount || 0;
+
+      // Debug: log preview summary for troubleshooting
+      try {
+        console.log("[checkout.service] getCheckoutPreview =>", {
+          userId,
+          storeId: storeId || selectedStore?.id,
+          subtotal,
+          previewDiscount,
+          cartSummaryCount: cartSummary.length,
+        });
+      } catch (e) {
+        // ignore logging errors
+      }
+
       return {
         canCheckout: true,
         addresses: userAddresses,
@@ -299,6 +368,7 @@ export class CheckoutService {
         shippingOptions,
         distance,
         selectedStore, // Return the actual store being used
+        discountAmount: previewDiscount,
         requiresAddress: userAddresses.length === 0,
         selectedStoreId: storeId || selectedStore?.id, // Include storeId for frontend
       };

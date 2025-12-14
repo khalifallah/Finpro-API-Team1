@@ -115,6 +115,63 @@ export class OrderCreationService {
         orderItems,
       });
 
+      // --- Minimal: apply discount rules associated with products and record usages ---
+      try {
+        const productIds = orderItems.map((it) => it.productId);
+        if (productIds.length > 0) {
+          const applicableRules = await tx.discountRule.findMany({
+            where: {
+              productId: { in: productIds },
+              is_active: true,
+              deletedAt: null,
+            },
+          });
+
+          let totalRuleDiscount = 0;
+          for (const rule of applicableRules) {
+            let ruleAmount = 0;
+            if (rule.type === "DIRECT_PERCENTAGE") {
+              ruleAmount = Math.min(
+                subtotal * (rule.value! / 100),
+                rule.maxDiscountAmount || Number.MAX_SAFE_INTEGER
+              );
+            } else if (rule.type === "DIRECT_NOMINAL") {
+              ruleAmount = rule.value || 0;
+            } else if (rule.type === "BOGO") {
+              const item = orderItems.find((oi) => oi.productId === rule.productId);
+              if (item && item.quantity >= 1) {
+                const freeQuantity = 1;
+                ruleAmount = freeQuantity * (item.priceAtPurchase || 0);
+              }
+            }
+
+            // Record usage for this discount rule
+            await tx.discountUsage.create({
+              data: {
+                discountRuleId: rule.id,
+                orderId: order.id,
+                amount: ruleAmount,
+              },
+            });
+
+            totalRuleDiscount += ruleAmount;
+          }
+
+          if (totalRuleDiscount > 0) {
+            // Update order totals to include discount from rules
+            const newDiscount = (order.discountAmount || 0) + totalRuleDiscount;
+            const newTotal = (order.totalAmount || 0) - totalRuleDiscount;
+            await tx.order.update({
+              where: { id: order.id },
+              data: { discountAmount: newDiscount, totalAmount: newTotal },
+            });
+          }
+        }
+      } catch (e) {
+        // Non-fatal: do not break order creation on discount application failure
+        console.error("Failed to apply discount rules during order creation:", e);
+      }
+
       // 7. Potong Stok
       await this.updateStockAndCreateJournals(
         tx,

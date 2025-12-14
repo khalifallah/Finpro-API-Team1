@@ -76,3 +76,16 @@ export default async function handler(req: any, res: any) {
   await bootstrap();
   return app(req, res);
 }
+
+// If running locally (dev), start the Express server — keep export for serverless
+if (process.env.NODE_ENV !== "production") {
+  const port = process.env.PORT || 8000;
+  bootstrap()
+    .then(() => {
+      app.listen(port, () => console.log(`API server listening on http://localhost:${port}`));
+    })
+    .catch((err) => {
+      console.error("Failed to initialize DB on startup:", err);
+      process.exit(1);
+    });
+}

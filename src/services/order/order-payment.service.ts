@@ -1,6 +1,6 @@
 import prisma from "../../libs/prisma";
 import AppError from "../../errors/app.error";
-import { OrderStatus } from "../../generated/prisma-client";
+import { OrderStatus } from "@prisma/client";
 import { cloudinaryUpload } from "../../utils/cloudinary.utils";
 
 export class OrderPaymentService {

@@ -2,11 +2,7 @@
 
 import prisma from "../../libs/prisma";
 import AppError from "../../errors/app.error";
-import {
-  OrderStatus,
-  PaymentMethod,
-  PaymentStatus,
-} from "../../generated/prisma-client";
+import { OrderStatus, PaymentMethod, PaymentStatus } from "@prisma/client";
 import { ShippingService } from "../shipping.service";
 
 export interface CreateOrderData {
@@ -118,6 +114,77 @@ export class OrderCreationService {
         userVoucherId,
         orderItems,
       });
+
+      // --- Minimal: apply discount rules associated with products and record usages ---
+      try {
+        const productIds = orderItems.map((it) => it.productId);
+        if (productIds.length > 0) {
+          const applicableRules = await tx.discountRule.findMany({
+            where: {
+              productId: { in: productIds },
+              storeId: store.id,
+              is_active: true,
+              deletedAt: null,
+            },
+          });
+
+          let totalRuleDiscount = 0;
+          // Compute discounts per matching order item, respecting rule constraints
+          for (const rule of applicableRules) {
+            const item = orderItems.find((oi) => oi.productId === rule.productId);
+            if (!item) continue;
+
+            const itemTotal = (item.priceAtPurchase || 0) * (item.quantity || 0);
+
+            // Respect minimum purchase amount on rule (if defined)
+            if (rule.minPurchase && itemTotal < rule.minPurchase) {
+              continue;
+            }
+
+            let ruleAmount = 0;
+            if (rule.type === "DIRECT_PERCENTAGE") {
+              ruleAmount = Math.min(
+                itemTotal * (rule.value! / 100),
+                rule.maxDiscountAmount || Number.MAX_SAFE_INTEGER
+              );
+            } else if (rule.type === "DIRECT_NOMINAL") {
+              ruleAmount = Math.min(rule.value || 0, itemTotal);
+            } else if (rule.type === "BOGO") {
+              // Give one free unit for every two units (buy 1 get 1)
+              if ((item.quantity || 0) >= 2) {
+                const freeUnits = Math.floor((item.quantity || 0) / 2);
+                ruleAmount = freeUnits * (item.priceAtPurchase || 0);
+              }
+            }
+
+            if (ruleAmount <= 0) continue;
+
+            // Record usage for this discount rule
+            await tx.discountUsage.create({
+              data: {
+                discountRuleId: rule.id,
+                orderId: order.id,
+                amount: ruleAmount,
+              },
+            });
+
+            totalRuleDiscount += ruleAmount;
+          }
+
+          if (totalRuleDiscount > 0) {
+            // Update order totals to include discount from rules
+            const newDiscount = (order.discountAmount || 0) + totalRuleDiscount;
+            const newTotal = (order.totalAmount || 0) - totalRuleDiscount;
+            await tx.order.update({
+              where: { id: order.id },
+              data: { discountAmount: newDiscount, totalAmount: newTotal },
+            });
+          }
+        }
+      } catch (e) {
+        // Non-fatal: do not break order creation on discount application failure
+        console.error("Failed to apply discount rules during order creation:", e);
+      }
 
       // 7. Potong Stok
       await this.updateStockAndCreateJournals(

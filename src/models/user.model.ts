@@ -1,4 +1,4 @@
-import { User } from "../generated/prisma-client";
+import { User } from "@prisma/client";
 
 type TUser = Omit<User, "passwordHash"> | null;
 

@@ -248,6 +248,82 @@ export class CheckoutService {
         });
       }
 
+      // Attach any active discount rules for the products in the cart (minimal info)
+      const productIds = cart.cartItems.map((i) => i.productId);
+      let previewTotalDiscount = 0;
+      if (productIds.length > 0) {
+        // Scope discount rules to the relevant store. Prefer provided `storeId`, otherwise try nearest store.
+        let discountStoreId = storeId;
+        if (!discountStoreId) {
+          try {
+            const { store: nearestStore } = await this.shippingService.findNearestStore(selectedAddress || userAddresses[0]);
+            discountStoreId = nearestStore?.id;
+          } catch (e) {
+            // ignore and fallback to no-store filter
+          }
+        }
+
+        const discountWhere: any = {
+          productId: { in: productIds },
+          is_active: true,
+          deletedAt: null,
+        };
+        if (discountStoreId) discountWhere.storeId = discountStoreId;
+
+        const discountRules = await prisma.discountRule.findMany({
+          where: discountWhere,
+          include: { product: true },
+        });
+
+        // Map discount info onto cartSummary items if there's a matching rule
+        for (const s of cartSummary) {
+          const rule = discountRules.find((r) => r.productId === s.productId);
+          if (rule) {
+            s.discount = {
+              id: rule.id,
+              description: rule.description,
+              type: rule.type,
+              value: rule.value,
+            };
+          }
+        }
+
+          // Compute discount amounts per item and total discount for preview
+            for (const s of cartSummary) {
+              if (!s.discount) continue;
+              const rule = discountRules.find((r) => r.id === s.discount.id);
+              if (!rule) continue;
+
+              let itemDiscount = 0;
+              // Respect minimum purchase if defined on rule
+              if (rule.minPurchase && s.total < rule.minPurchase) {
+                // skip applying this rule for this item
+                s.discountAmount = 0;
+                continue;
+              }
+
+              if (rule.type === "DIRECT_PERCENTAGE") {
+                itemDiscount = Math.min(
+                  s.total * (rule.value! / 100),
+                  rule.maxDiscountAmount || Number.MAX_SAFE_INTEGER
+                );
+              } else if (rule.type === "DIRECT_NOMINAL") {
+                itemDiscount = Math.min(rule.value || 0, s.total);
+              } else if (rule.type === "BOGO") {
+                // Give one free item for every 2 items (buy 1 get 1)
+                if (s.quantity >= 2) {
+                  const freeUnits = Math.floor(s.quantity / 2);
+                  itemDiscount = freeUnits * (s.price || 0);
+                }
+              }
+
+              s.discountAmount = itemDiscount;
+              previewTotalDiscount += itemDiscount;
+            }
+
+            // attach total discount to be returned in preview (previewTotalDiscount variable)
+      }
+
       // Jika ada alamat, hitung shipping options
       let shippingOptions = [];
       let distance = 0;
@@ -289,6 +365,21 @@ export class CheckoutService {
         shippingOptions = shippingResult.availableServices;
       }
 
+      const previewDiscount = previewTotalDiscount || 0;
+
+      // Debug: log preview summary for troubleshooting
+      try {
+        console.log("[checkout.service] getCheckoutPreview =>", {
+          userId,
+          storeId: storeId || selectedStore?.id,
+          subtotal,
+          previewDiscount,
+          cartSummaryCount: cartSummary.length,
+        });
+      } catch (e) {
+        // ignore logging errors
+      }
+
       return {
         canCheckout: true,
         addresses: userAddresses,
@@ -299,6 +390,7 @@ export class CheckoutService {
         shippingOptions,
         distance,
         selectedStore, // Return the actual store being used
+        discountAmount: previewDiscount,
         requiresAddress: userAddresses.length === 0,
         selectedStoreId: storeId || selectedStore?.id, // Include storeId for frontend
       };

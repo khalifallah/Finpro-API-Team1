@@ -1,7 +1,5 @@
-import { PrismaClient } from "../generated/prisma-client";
+import prisma from "../libs/prisma";
 import AppError from "../errors/app.error";
-
-const prisma = new PrismaClient();
 
 export interface CreateStoreRequest {
   name: string;

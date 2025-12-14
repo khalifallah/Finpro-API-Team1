@@ -5,8 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "npx prisma generate && npx tsc && npx shx mkdir -p dist/generated && npx shx cp -R src/generated/prisma-client dist/generated/prisma-client && npx shx cp -R src/templates dist/templates",
+    "build": "npx prisma generate && npx tsc",
     "start": "node dist/index.js",
+    "postinstall": "npx prisma generate",
     "vercel-build": "npm run build",
     "studio": "npx prisma studio",
     "migrate:dev": "npx prisma migrate dev",

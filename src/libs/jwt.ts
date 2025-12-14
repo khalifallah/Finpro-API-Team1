@@ -1,5 +1,5 @@
 import * as jwt from "jsonwebtoken";
-import { UserRole } from "../generated/prisma-client";
+import { UserRole } from "@prisma/client";
 
 // Use JWT_SECRET to match app.config.ts
 const jwtSecret = process.env.JWT_SECRET;

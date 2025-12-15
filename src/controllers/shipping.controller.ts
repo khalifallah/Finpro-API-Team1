@@ -73,12 +73,13 @@ export class ShippingController {
         throw new AppError("User not authenticated", 401);
       }
 
-      const { addressId, storeId } = req.query; // Add storeId
+      const { addressId, storeId, voucherCode } = req.query;
 
       const preview = await checkoutService.getCheckoutPreview(
         req.user.id,
         addressId ? Number(addressId) : undefined,
-        storeId ? Number(storeId) : undefined // Pass storeId to service
+        storeId ? Number(storeId) : undefined,
+        voucherCode ? String(voucherCode) : undefined
       );
 
       res.status(200).json(

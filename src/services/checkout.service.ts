@@ -2,6 +2,7 @@ import prisma from "../libs/prisma";
 import AppError from "../errors/app.error";
 import { ShippingService } from "./shipping.service";
 import { OrderCreationService } from "./order/order-creation.service";
+import { validateVoucher } from "./voucher.service";
 
 export interface ICheckoutData {
   userId: number;
@@ -21,14 +22,73 @@ export class CheckoutService {
     this.orderCreationService = new OrderCreationService();
   }
 
+  private async calculateStoreDiscounts(cartItems: any[], storeId: number) {
+    let totalStoreDiscount = 0;
+    const itemDiscounts: Record<number, number> = {}; // Map productId -> discountAmount
+
+    // 1. Ambil Rules Aktif di Toko Ini
+    const productIds = cartItems.map((i) => i.productId);
+    const activeRules = await prisma.discountRule.findMany({
+      where: {
+        storeId: storeId,
+        productId: { in: productIds },
+        is_active: true,
+        deletedAt: null,
+      },
+    });
+
+    // 2. Loop Items untuk hitung diskon
+    for (const item of cartItems) {
+      const rule = activeRules.find((r) => r.productId === item.productId);
+      if (!rule) continue;
+
+      const itemTotal = item.product.defaultPrice * item.quantity;
+      let deduction = 0;
+
+      // Cek Min Purchase
+      if (rule.minPurchase > 0 && itemTotal < rule.minPurchase) {
+        continue;
+      }
+
+      // Hitung Berdasarkan Tipe
+      if (rule.type === "DIRECT_PERCENTAGE") {
+        deduction = Math.round((itemTotal * (rule.value || 0)) / 100);
+        if (rule.maxDiscountAmount && deduction > rule.maxDiscountAmount) {
+          deduction = rule.maxDiscountAmount;
+        }
+      } else if (rule.type === "DIRECT_NOMINAL") {
+        deduction = rule.value || 0;
+      } else if (rule.type === "BOGO") {
+        // Logic Baru: Kelipatan 2 (Beli 2 Gratis 1)
+        const freeUnits = Math.floor(item.quantity / 2);
+        if (freeUnits > 0) {
+          deduction = freeUnits * item.product.defaultPrice;
+        }
+      }
+
+      // Safety check
+      if (deduction > itemTotal) deduction = itemTotal;
+
+      itemDiscounts[item.productId] = deduction;
+      totalStoreDiscount += deduction;
+    }
+
+    return { totalStoreDiscount, itemDiscounts };
+  }
+
   async validateCheckout(data: ICheckoutData): Promise<{
     isValid: boolean;
     userAddress: any;
-    selectedStore: any; // Renamed from nearestStore for clarity
+    selectedStore: any;
     shippingCost: number;
     distance: number;
     cartItems: any[];
     subtotal: number;
+    totalDiscount: number;
+    voucherDeduction: number;
+    shippingDeduction: number;
+    finalTotal: number;
+    userVoucherId?: number;
     availableShippingMethods: any[];
   }> {
     try {
@@ -45,7 +105,7 @@ export class CheckoutService {
         throw new AppError("Shipping address not found", 404);
       }
 
-      // 2. Dapatkan cart items untuk menghitung weight
+      // 2. Dapatkan cart items
       const cart = await prisma.cart.findFirst({
         where: {
           userId: data.userId,
@@ -53,6 +113,7 @@ export class CheckoutService {
         },
         include: {
           cartItems: {
+            where: { deletedAt: null }, // Hanya ambil item yang tidak dihapus
             include: {
               product: true,
             },
@@ -64,23 +125,23 @@ export class CheckoutService {
         throw new AppError("Cart is empty", 400);
       }
 
-      // 3. Hitung total weight
+      // 3. Hitung total weight & Raw Subtotal
       let totalWeight = 0;
       let subtotal = 0;
 
       for (const item of cart.cartItems) {
         // Asumsikan setiap product memiliki berat default 1000g jika tidak ada
-        const productWeight = 1000; // dalam gram
+        const productWeight = 1000;
         totalWeight += productWeight * item.quantity;
         subtotal += item.product.defaultPrice * item.quantity;
       }
 
-      // 4. Gunakan store yang dipilih jika ada, jika tidak cari store terdekat
+      // 4. Tentukan Store & Jarak (DEFINISI VARIABEL YANG HILANG SEBELUMNYA)
       let selectedStore;
       let distance;
 
       if (data.storeId) {
-        // Use the provided store
+        // Jika user manual memilih store
         selectedStore = await this.shippingService.getStoreById(data.storeId);
 
         // Hitung jarak ke store yang dipilih
@@ -95,14 +156,13 @@ export class CheckoutService {
           }
         );
       } else {
-        // Cari store terdekat jika tidak ada storeId
-        const { store: nearestStore, distance: storeDistance } =
-          await this.shippingService.findNearestStore(userAddress);
-        selectedStore = nearestStore;
-        distance = storeDistance;
+        // Cari store terdekat otomatis
+        const result = await this.shippingService.findNearestStore(userAddress);
+        selectedStore = result.store;
+        distance = result.distance;
       }
 
-      // 5. Hitung shipping cost untuk store yang dipilih
+      // 5. Hitung Shipping Cost (DEFINISI VARIABEL shippingResult)
       const shippingResult =
         await this.shippingService.calculateShippingForCheckout(
           selectedStore.id,
@@ -111,14 +171,70 @@ export class CheckoutService {
           data.shippingMethod
         );
 
+      // --- LOGIKA DISKON & VOUCHER (REVISI BARU) ---
+
+      // 6. Hitung Diskon Toko Otomatis
+      const { totalStoreDiscount } = await this.calculateStoreDiscounts(
+        cart.cartItems,
+        selectedStore.id
+      );
+
+      // 7. Hitung Voucher (Jika ada kode)
+      let voucherDeduction = 0;
+      let shippingDeduction = 0;
+      let userVoucherId = undefined;
+
+      // Harga dasar untuk voucher belanja adalah (Subtotal - Diskon Toko)
+      const priceAfterStoreDisc = subtotal - totalStoreDiscount;
+
+      if (data.voucherCode) {
+        // Panggil Service Voucher
+        const voucherResult = await validateVoucher({
+          userId: data.userId,
+          code: data.voucherCode,
+          cartTotal: priceAfterStoreDisc,
+          shippingCost: shippingResult.totalShippingCost,
+        });
+
+        userVoucherId = voucherResult.userVoucherId;
+
+        // Pisahkan target voucher (Ongkir vs Transaksi)
+        if (voucherResult.target === "SHIPPING") {
+          shippingDeduction = voucherResult.deductionAmount;
+        } else {
+          voucherDeduction = voucherResult.deductionAmount;
+        }
+      }
+
+      // 8. Hitung Final Total
+      // Rumus: (Harga Barang Bersih) + (Ongkir Bersih)
+      // Harga Barang Bersih = Subtotal - Diskon Toko - Voucher Belanja
+      const finalProductPrice = Math.max(
+        0,
+        subtotal - totalStoreDiscount - voucherDeduction
+      );
+
+      // Ongkir Bersih = Ongkir RajaOngkir - Voucher Ongkir
+      const finalShippingPrice = Math.max(
+        0,
+        shippingResult.totalShippingCost - shippingDeduction
+      );
+
+      const finalTotal = finalProductPrice + finalShippingPrice;
+
       return {
         isValid: true,
         userAddress,
-        selectedStore, // Return the actual store used
+        selectedStore,
         shippingCost: shippingResult.totalShippingCost,
         distance,
         cartItems: cart.cartItems,
         subtotal,
+        totalDiscount: totalStoreDiscount, // Info Diskon Toko
+        voucherDeduction, // Info Potongan Voucher Belanja
+        shippingDeduction, // Info Potongan Voucher Ongkir
+        userVoucherId,
+        finalTotal, // Total Akhir yang harus dibayar
         availableShippingMethods: shippingResult.availableServices,
       };
     } catch (error) {
@@ -175,10 +291,11 @@ export class CheckoutService {
   async getCheckoutPreview(
     userId: number,
     addressId?: number,
-    storeId?: number // Add storeId parameter
+    storeId?: number,
+    voucherCode?: string // [TAMBAHAN BARU]
   ): Promise<any> {
     try {
-      // Dapatkan alamat user
+      // 1. Dapatkan semua alamat user
       const userAddresses = await prisma.userAddress.findMany({
         where: {
           userId,
@@ -187,6 +304,8 @@ export class CheckoutService {
         orderBy: [{ isMain: "desc" }, { createdAt: "desc" }],
       });
 
+      // 2. Tentukan alamat yang dipakai (Selected Address)
+      // Prioritas: Address ID di-request -> Alamat Utama -> Alamat Pertama
       let selectedAddress = null;
       if (addressId) {
         selectedAddress = userAddresses.find((addr) => addr.id === addressId);
@@ -195,7 +314,8 @@ export class CheckoutService {
           userAddresses.find((addr) => addr.isMain) || userAddresses[0];
       }
 
-      // Dapatkan cart items (only non-deleted)
+      // 3. Dapatkan cart items
+      // Filter: Hanya item yang belum dihapus
       const cart = await prisma.cart.findFirst({
         where: {
           userId,
@@ -204,8 +324,7 @@ export class CheckoutService {
         include: {
           cartItems: {
             where: {
-              deletedAt: null, // Only include non-deleted items
-              storeId: storeId ? storeId : undefined, // Filter by storeId if provided
+              deletedAt: null,
             },
             include: {
               product: {
@@ -221,178 +340,192 @@ export class CheckoutService {
         },
       });
 
+      // Handle jika cart kosong
       if (!cart || cart.cartItems.length === 0) {
         return {
           canCheckout: false,
           message: "Cart is empty",
+          addresses: userAddresses,
+          cartSummary: [],
+          subtotal: 0,
+          totalWeight: 0,
+          shippingOptions: [],
+          requiresAddress: userAddresses.length === 0,
         };
       }
 
-      // Hitung subtotal dan weight
+      // 4. Hitung Raw Subtotal & Total Weight
       let subtotal = 0;
       let totalWeight = 0;
-      const cartSummary = [];
 
       for (const item of cart.cartItems) {
-        const itemTotal = item.product.defaultPrice * item.quantity;
-        subtotal += itemTotal;
-        totalWeight += 1000 * item.quantity; // Default weight 1000g per item
+        subtotal += item.product.defaultPrice * item.quantity;
+        // Default weight 1000g jika tidak ada data berat
+        totalWeight += 1000 * item.quantity;
+      }
 
-        cartSummary.push({
+      // 5. Tentukan Store & Jarak
+      let selectedStore = null;
+      let distance = 0;
+
+      if (storeId) {
+        // KASUS A: User sudah memilih toko (misal dari halaman cart/home)
+        try {
+          selectedStore = await this.shippingService.getStoreById(storeId);
+
+          // Hitung jarak jika alamat tersedia
+          if (selectedAddress) {
+            distance = this.shippingService.calculateDistance(
+              {
+                latitude: Number(selectedAddress.latitude),
+                longitude: Number(selectedAddress.longitude),
+              },
+              {
+                latitude: Number(selectedStore.latitude),
+                longitude: Number(selectedStore.longitude),
+              }
+            );
+          }
+        } catch (e) {
+          // Jika store ID invalid, biarkan null agar logic fallback jalan (opsional)
+          console.warn(`Store ID ${storeId} not found for preview`);
+        }
+      }
+
+      // KASUS B: Belum ada toko terpilih, cari yang terdekat dari alamat
+      if (!selectedStore && selectedAddress) {
+        try {
+          const result = await this.shippingService.findNearestStore(
+            selectedAddress
+          );
+          selectedStore = result.store;
+          distance = result.distance;
+        } catch (e) {
+          // Handle jika tidak ada toko sama sekali di sistem
+          console.warn("No nearest store found");
+        }
+      }
+
+      // 6. Hitung Diskon Toko (Jika Store sudah ketemu)
+      let totalStoreDiscount = 0;
+      let itemDiscounts: Record<number, number> = {};
+
+      if (selectedStore) {
+        // Panggil Helper Logic yang sama dengan validateCheckout
+        const discResult = await this.calculateStoreDiscounts(
+          cart.cartItems,
+          selectedStore.id
+        );
+        totalStoreDiscount = discResult.totalStoreDiscount;
+        itemDiscounts = discResult.itemDiscounts;
+      }
+
+      // 7. Hitung Shipping Options (Jika Address & Store ada)
+      let shippingOptions: any[] = []; // Fix type explicit
+      if (selectedAddress && selectedStore) {
+        try {
+          // Hitung ongkir via RajaOngkir / Logic Shipping
+          const shippingResult =
+            await this.shippingService.calculateShippingForCheckout(
+              selectedStore.id,
+              selectedAddress,
+              totalWeight
+            );
+          shippingOptions = shippingResult.availableServices;
+        } catch (error) {
+          // Jangan throw error fatal, agar user tetap bisa lihat cart
+          // Nanti validasi akan memblokir saat tombol "Place Order" ditekan
+          console.warn("Shipping calculation failed for preview:", error);
+        }
+      }
+
+      // [TAMBAHAN BARU: LOGIC VOUCHER UNTUK PREVIEW]
+      let voucherDeduction = 0;
+      let shippingDeduction = 0;
+
+      // Harga dasar untuk voucher belanja adalah (Subtotal - Diskon Toko)
+      const priceAfterStoreDisc = subtotal - totalStoreDiscount;
+
+      if (voucherCode) {
+        // Jika ada kode voucher dikirim
+        try {
+          // Estimasi ongkir sementara (jika belum ada shipping, anggap 0 atau ambil termurah)
+          // Agar validasi voucher "Gratis Ongkir" bisa jalan minimal
+          let estimatedShippingCost = 0;
+          if (shippingOptions.length > 0) {
+            estimatedShippingCost = shippingOptions[0].cost; // Ambil opsi pertama sbg estimasi
+          }
+
+          const voucherResult = await validateVoucher({
+            userId,
+            code: voucherCode,
+            cartTotal: priceAfterStoreDisc,
+            shippingCost: estimatedShippingCost,
+          });
+
+          // Pisahkan target voucher
+          if (voucherResult.target === "SHIPPING") {
+            shippingDeduction = voucherResult.deductionAmount;
+          } else {
+            voucherDeduction = voucherResult.deductionAmount;
+          }
+        } catch (error) {
+          // Jika voucher tidak valid, abaikan saja untuk preview (jangan throw error fatal)
+          console.warn(`Invalid voucher code in preview: ${voucherCode}`);
+        }
+      }
+
+      // Hitung Final Total untuk Preview
+      // Asumsi Ongkir belum fixed (ambil 0 atau ambil estimasi)
+      const estimatedFinalTotal = Math.max(
+        0,
+        priceAfterStoreDisc - voucherDeduction
+      );
+
+      // 8. Mapping Cart Summary untuk Frontend
+      const cartSummary = cart.cartItems.map((item: any) => {
+        const itemTotal = item.product.defaultPrice * item.quantity;
+        const discountAmt = itemDiscounts[item.productId] || 0;
+
+        return {
           productId: item.productId,
           productName: item.product.name,
           quantity: item.quantity,
           price: item.product.defaultPrice,
           total: itemTotal,
           imageUrl: item.product.productImages[0]?.imageUrl,
-        });
-      }
-
-      // Attach any active discount rules for the products in the cart (minimal info)
-      const productIds = cart.cartItems.map((i) => i.productId);
-      let previewTotalDiscount = 0;
-      if (productIds.length > 0) {
-        // Scope discount rules to the relevant store. Prefer provided `storeId`, otherwise try nearest store.
-        let discountStoreId = storeId;
-        if (!discountStoreId) {
-          try {
-            const { store: nearestStore } = await this.shippingService.findNearestStore(selectedAddress || userAddresses[0]);
-            discountStoreId = nearestStore?.id;
-          } catch (e) {
-            // ignore and fallback to no-store filter
-          }
-        }
-
-        const discountWhere: any = {
-          productId: { in: productIds },
-          is_active: true,
-          deletedAt: null,
+          // Attach Info Diskon untuk Frontend (Coret Harga / BOGO)
+          discountAmount: discountAmt,
+          finalPrice: itemTotal - discountAmt,
         };
-        if (discountStoreId) discountWhere.storeId = discountStoreId;
+      });
 
-        const discountRules = await prisma.discountRule.findMany({
-          where: discountWhere,
-          include: { product: true },
-        });
-
-        // Map discount info onto cartSummary items if there's a matching rule
-        for (const s of cartSummary) {
-          const rule = discountRules.find((r) => r.productId === s.productId);
-          if (rule) {
-            s.discount = {
-              id: rule.id,
-              description: rule.description,
-              type: rule.type,
-              value: rule.value,
-            };
-          }
-        }
-
-          // Compute discount amounts per item and total discount for preview
-            for (const s of cartSummary) {
-              if (!s.discount) continue;
-              const rule = discountRules.find((r) => r.id === s.discount.id);
-              if (!rule) continue;
-
-              let itemDiscount = 0;
-              // Respect minimum purchase if defined on rule
-              if (rule.minPurchase && s.total < rule.minPurchase) {
-                // skip applying this rule for this item
-                s.discountAmount = 0;
-                continue;
-              }
-
-              if (rule.type === "DIRECT_PERCENTAGE") {
-                itemDiscount = Math.min(
-                  s.total * (rule.value! / 100),
-                  rule.maxDiscountAmount || Number.MAX_SAFE_INTEGER
-                );
-              } else if (rule.type === "DIRECT_NOMINAL") {
-                itemDiscount = Math.min(rule.value || 0, s.total);
-              } else if (rule.type === "BOGO") {
-                // Give one free item for every 2 items (buy 1 get 1)
-                if (s.quantity >= 2) {
-                  const freeUnits = Math.floor(s.quantity / 2);
-                  itemDiscount = freeUnits * (s.price || 0);
-                }
-              }
-
-              s.discountAmount = itemDiscount;
-              previewTotalDiscount += itemDiscount;
-            }
-
-            // attach total discount to be returned in preview (previewTotalDiscount variable)
-      }
-
-      // Jika ada alamat, hitung shipping options
-      let shippingOptions = [];
-      let distance = 0;
-      let selectedStore = null;
-
-      if (selectedAddress) {
-        // *** FIX: Use provided storeId or find nearest ***
-        if (storeId) {
-          // Use the provided store
-          selectedStore = await this.shippingService.getStoreById(storeId);
-
-          // Calculate distance to the selected store
-          distance = this.shippingService.calculateDistance(
-            {
-              latitude: Number(selectedAddress.latitude),
-              longitude: Number(selectedAddress.longitude),
-            },
-            {
-              latitude: Number(selectedStore.latitude),
-              longitude: Number(selectedStore.longitude),
-            }
-          );
-        } else {
-          // Cari store terdekat jika tidak ada storeId
-          const { store: nearestStore, distance: storeDistance } =
-            await this.shippingService.findNearestStore(selectedAddress);
-          selectedStore = nearestStore;
-          distance = storeDistance;
-        }
-
-        // Hitung shipping options untuk store yang dipilih
-        const shippingResult =
-          await this.shippingService.calculateShippingForCheckout(
-            selectedStore.id,
-            selectedAddress,
-            totalWeight
-          );
-
-        shippingOptions = shippingResult.availableServices;
-      }
-
-      const previewDiscount = previewTotalDiscount || 0;
-
-      // Debug: log preview summary for troubleshooting
-      try {
-        console.log("[checkout.service] getCheckoutPreview =>", {
-          userId,
-          storeId: storeId || selectedStore?.id,
-          subtotal,
-          previewDiscount,
-          cartSummaryCount: cartSummary.length,
-        });
-      } catch (e) {
-        // ignore logging errors
-      }
-
+      // 9. Return Response
       return {
         canCheckout: true,
         addresses: userAddresses,
         selectedAddress,
         cartSummary,
-        subtotal,
+
+        // Info Biaya
+        subtotal, // Harga Asli
+        totalDiscount: totalStoreDiscount, // Total Potongan Toko
         totalWeight,
+
+        // [TAMBAHAN BARU] Info Voucher
+        voucherDeduction,
+        shippingDeduction,
+        finalTotal: estimatedFinalTotal,
+
+        // Info Shipping
         shippingOptions,
         distance,
-        selectedStore, // Return the actual store being used
-        discountAmount: previewDiscount,
+
+        // Info Store
+        selectedStore,
+        selectedStoreId: selectedStore?.id,
+
         requiresAddress: userAddresses.length === 0,
-        selectedStoreId: storeId || selectedStore?.id, // Include storeId for frontend
       };
     } catch (error) {
       console.error("Checkout preview error:", error);

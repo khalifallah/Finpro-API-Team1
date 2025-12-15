@@ -16,7 +16,7 @@ import { GoogleAuthService as GoogleTokenVerifier } from "../../services/auth/go
 import prisma from "../../libs/prisma";
 
 export class AuthSessionController {
-  // ✅ UPDATE: Login method to include store info
+  // UPDATE: Login method to include store info
   static async login(req: Request, res: Response, next: NextFunction) {
     try {
       let data: any;
@@ -30,7 +30,7 @@ export class AuthSessionController {
         throw new AppError("Invalid LoginService implementation", 500);
       }
 
-      // ✅ ADD: Fetch store info jika user adalah STORE_ADMIN
+      // ADD: Fetch store info jika user adalah STORE_ADMIN
       let store = null;
       if (data.user.role === "STORE_ADMIN" && data.user.id) {
         const storeData = await prisma.store.findFirst({
@@ -52,12 +52,12 @@ export class AuthSessionController {
         console.log("🏪 Store for STORE_ADMIN:", store);
       }
 
-      // ✅ ADD: Include store in response
+      //  ADD: Include store in response
       res.status(200).json(
         responseBuilder(200, "Login successful", {
           user: {
             ...data.user,
-            store: store, // ✅ Add store here
+            store: store, // Add store here
           },
           token: data.token,
         })
@@ -112,7 +112,6 @@ export class AuthSessionController {
     }
   }
 
-  // ✅ UPDATE: getCurrentUser method to include store info
   static async getCurrentUser(
     req: Request,
     res: Response,
@@ -125,6 +124,10 @@ export class AuthSessionController {
       let user: any;
       if (typeof (FindUserByEmail as any) === "function") {
         user = await (FindUserByEmail as any)(req.user.email);
+      } else if (
+        typeof (FindUserByEmail as any).findUserByEmail === "function"
+      ) {
+        user = await (FindUserByEmail as any).findUserByEmail(req.user.email);
       } else if (typeof (FindUserByEmail as any).findByEmail === "function") {
         user = await (FindUserByEmail as any).findByEmail(req.user.email);
       } else if (typeof (FindUserByEmail as any).getByEmail === "function") {
@@ -134,11 +137,10 @@ export class AuthSessionController {
       } else {
         throw new AppError("Invalid FindUserByEmail implementation", 500);
       }
+
       if (!user) {
         throw new AppError("User not found", 404);
       }
-
-      // ✅ ADD: Fetch store info jika user adalah STORE_ADMIN
       let store = null;
       if (user.role === "STORE_ADMIN" && user.id) {
         const storeData = await prisma.store.findFirst({
@@ -168,10 +170,12 @@ export class AuthSessionController {
             role: user.role,
             photoUrl: user.photoUrl,
             storeId: user.storeId,
-            store: store, // ✅ Add store here
+            store: store,
             emailVerifiedAt: user.emailVerifiedAt,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
+            // Prisma returns an object { id:..., code: "..." }
+            referralCode: user.referralCode?.code,
           },
         })
       );

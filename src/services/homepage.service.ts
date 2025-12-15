@@ -324,33 +324,12 @@ export class HomepageService {
   private async getStoreProducts(storeId: number, page: number, limit: number) {
     const skip = (page - 1) * limit;
 
-    // Get product IDs available in this store
-    const productStocks = await prisma.productStock.findMany({
-      where: {
-        storeId,
-        deletedAt: null,
-        quantity: {
-          gt: 0, // Only products with stock
-        },
-      },
-      select: {
-        productId: true,
-        quantity: true,
-      },
-    });
-
-    const productIds = productStocks.map((stock) => stock.productId);
-
-    if (productIds.length === 0) {
-      return { products: [], total: 0 };
-    }
-
+    // Fetch products and include productStocks for the given store (left join style).
+    // This ensures products that don't have a stock record for the store are still returned
+    // with a stock quantity of 0.
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where: {
-          id: {
-            in: productIds,
-          },
           deletedAt: null,
         },
         include: {
@@ -361,6 +340,12 @@ export class HomepageService {
             },
             take: 3,
           },
+          productStocks: {
+            where: {
+              storeId: storeId,
+              deletedAt: null,
+            },
+          },
         },
         skip,
         take: limit,
@@ -370,27 +355,21 @@ export class HomepageService {
       }),
       prisma.product.count({
         where: {
-          id: {
-            in: productIds,
-          },
           deletedAt: null,
         },
       }),
     ]);
 
-    // Merge with stock information
+    // Merge with stock information (use the first matching productStock or 0)
     const productsWithStock = products.map((product) => {
-      const stock = productStocks.find((s) => s.productId === product.id);
+      const stock = product.productStocks && product.productStocks[0] ? product.productStocks[0] : { quantity: 0 };
       return {
         ...product,
-        stock: stock || { quantity: 0 },
-        // Ensure images structure matches frontend expectations
-        images: product.productImages.map((img) => ({
-          id: img.id,
-          imageUrl: img.imageUrl,
-        })),
+        stock,
+        images: product.productImages.map((img) => ({ id: img.id, imageUrl: img.imageUrl })),
       };
     });
+
     return {
       products: productsWithStock,
       total,

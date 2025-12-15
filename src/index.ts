@@ -17,6 +17,7 @@ import storeRoutes from "./routes/store.route";
 import homepageRoutes from "./routes/homepage.route";
 import cartRoute from "./routes/cart.route";
 import reportRoutes from "./routes/report.route";
+import voucherRoutes from "./routes/voucher.route";
 
 import prisma from "./libs/prisma";
 
@@ -48,6 +49,7 @@ apiRouter.use("/stores", storeRoutes);
 apiRouter.use("/homepage", homepageRoutes);
 apiRouter.use("/cart", cartRoute);
 apiRouter.use("/reports", reportRoutes);
+apiRouter.use("/vouchers", voucherRoutes);
 
 /* ================== ERROR HANDLERS ================== */
 app.use((_: Request, res: Response) => {
@@ -82,7 +84,9 @@ if (process.env.NODE_ENV !== "production") {
   const port = process.env.PORT || 8000;
   bootstrap()
     .then(() => {
-      app.listen(port, () => console.log(`API server listening on http://localhost:${port}`));
+      app.listen(port, () =>
+        console.log(`API server listening on http://localhost:${port}`)
+      );
     })
     .catch((err) => {
       console.error("Failed to initialize DB on startup:", err);

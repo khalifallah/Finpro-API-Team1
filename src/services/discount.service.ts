@@ -182,6 +182,10 @@ export const applyDiscount = async (
     if (!rule || !rule.is_active)
       throw new Error("Invalid or inactive discount rule");
 
+    if (rule.minPurchase > 0 && subtotal < rule.minPurchase) {
+      return { discountAmount: 0 };
+    }
+
     let discountAmount = 0;
     if (rule.type === "DIRECT_PERCENTAGE") {
       discountAmount = Math.min(
@@ -202,15 +206,24 @@ export const applyDiscount = async (
       const productItem = order?.orderItems.find(
         (item) => item.productId === rule.productId
       );
-      if (productItem && productItem.quantity >= 1) {
-        const freeQuantity = 1;
-        discountAmount = freeQuantity * productItem.priceAtPurchase;
+      if (productItem) {
+        const freeQuantity = Math.floor(productItem.quantity / 2);
+
+        if (freeQuantity > 0) {
+          discountAmount = freeQuantity * productItem.priceAtPurchase;
+        }
       }
     }
+
+    if (discountAmount > subtotal) {
+      discountAmount = subtotal;
+    }
     // Record discount usage
-    await prisma.discountUsage.create({
-      data: { discountRuleId, orderId, amount: discountAmount },
-    });
+    if (discountAmount > 0) {
+      await prisma.discountUsage.create({
+        data: { discountRuleId, orderId, amount: discountAmount },
+      });
+    }
     return { discountAmount };
   } catch (err: any) {
     throw new Error(`Failed to apply discount: ${err.message}`);

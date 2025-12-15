@@ -37,6 +37,8 @@ export class HomepageController {
 
       const storeIdParam = req.query.storeId;
       const storeId = storeIdParam ? Number(storeIdParam) : undefined;
+      const categoryParam = req.query.category;
+      const category = categoryParam ? Number(categoryParam) : undefined;
 
       // Get homepage data
       const homepageData = await homepageService.getHomepageData(
@@ -44,7 +46,8 @@ export class HomepageController {
         longitude,
         page,
         limit,
-        storeId
+        storeId,
+        category
       );
 
       // Add location info to response

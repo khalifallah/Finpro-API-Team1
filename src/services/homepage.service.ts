@@ -91,7 +91,8 @@ export class HomepageService {
     longitude?: number,
     page: number = 1,
     limit: number = 10,
-    storeId?: number
+    storeId?: number,
+    category?: number
   ): Promise<HomepageData> {
     try {
       let store;
@@ -121,7 +122,8 @@ export class HomepageService {
       const { products, total } = await this.getStoreProducts(
         store.id,
         page,
-        limit
+        limit,
+        category
       );
 
       // 5. Get footer data
@@ -321,7 +323,12 @@ export class HomepageService {
     }));
   }
 
-  private async getStoreProducts(storeId: number, page: number, limit: number) {
+  private async getStoreProducts(
+    storeId: number,
+    page: number,
+    limit: number,
+    category?: number
+  ) {
     const skip = (page - 1) * limit;
 
     // Fetch products and include productStocks for the given store (left join style).
@@ -331,6 +338,7 @@ export class HomepageService {
       prisma.product.findMany({
         where: {
           deletedAt: null,
+          ...(category ? { categoryId: category } : {}),
         },
         include: {
           category: true,
@@ -356,6 +364,7 @@ export class HomepageService {
       prisma.product.count({
         where: {
           deletedAt: null,
+          ...(category ? { categoryId: category } : {}),
         },
       }),
     ]);

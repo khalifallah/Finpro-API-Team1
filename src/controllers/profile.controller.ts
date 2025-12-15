@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { ProfileService } from "../services/profile.service";
 import AppError from "../errors/app.error";
 import { responseBuilder } from "../utils/response.builder";
+import prisma from "../libs/prisma";
 
 const profileService = new ProfileService();
 
@@ -145,6 +146,49 @@ export class ProfileController {
       res.status(200).json(
         responseBuilder(200, "Profile photo removed successfully", {
           profile: updatedProfile,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+  static async getUserVouchers(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const userId = getUserId(req);
+
+      const userVouchers = await prisma.userVoucher.findMany({
+        where: {
+          userId: userId,
+          deletedAt: null,
+        },
+        include: {
+          voucher: {
+            select: {
+              id: true,
+              code: true,
+              description: true,
+              type: true,
+              value: true,
+              target: true,
+              minPurchaseAmount: true,
+              maxDiscountAmount: true,
+              expiresAt: true,
+              is_active: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      res.status(200).json(
+        responseBuilder(200, "Vouchers retrieved successfully", {
+          vouchers: userVouchers,
         })
       );
     } catch (error) {

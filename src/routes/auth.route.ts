@@ -197,6 +197,12 @@ router.get(
   AuthSessionController.getCurrentUser.bind(AuthSessionController)
 );
 
+router.get(
+  "/profile/vouchers",
+  requireVerifiedUser,
+  ProfileController.getUserVouchers
+);
+
 // ==================== CART MANAGEMENT ROUTES ====================
 // Get user cart
 router.get(

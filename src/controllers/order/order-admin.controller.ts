@@ -260,6 +260,7 @@ export class OrderAdminController {
           orderId: order.id,
           userId: order.userId,
           reason: adminNotes || "Cancelled by admin",
+          role: "ADMIN",
         });
 
         this.sendNotificationEmail(order, OrderStatus.CANCELLED).catch(
@@ -314,6 +315,36 @@ export class OrderAdminController {
     }
   }
 
+  async cancelOrder(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (!req.user) throw new AppError("User not authenticated", 401);
+
+      const { orderId } = req.params;
+      const { reason } = req.body; // Reason diambil dari input modal
+
+      if (!reason) throw new AppError("Cancellation reason is required", 400);
+
+      await this.ordercancellationService.cancelOrder({
+        orderId: Number(orderId),
+        userId: req.user.id,
+        reason: reason,
+        role: "ADMIN", // <--- PENTING: Menandakan ini Admin yg cancel
+      });
+
+      res
+        .status(200)
+        .json(
+          responseBuilder(200, "Order cancelled and email sent to user", {})
+        );
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Helper yang kita bahas sebelumnya
   private async sendNotificationEmail(order: any, newStatus: string) {
     const userEmail = order.user.email;
@@ -344,13 +375,6 @@ export class OrderAdminController {
         displayStatus = "Sedang Dikirim";
         break;
 
-      case OrderStatus.CANCELLED:
-        subject = "Pesanan Dibatalkan";
-        message =
-          "Mohon maaf, pesanan Anda telah dibatalkan. Jika Anda sudah melakukan pembayaran, dana akan kami proses untuk pengembalian (refund).";
-        displayStatus = "Dibatalkan";
-        break;
-
       default:
         return;
     }
@@ -360,8 +384,9 @@ export class OrderAdminController {
       userEmail,
       userName,
       order.id,
+      order.createdAt,
       order.totalAmount,
-      displayStatus, // Status yang enak dibaca user
+      displayStatus,
       subject,
       message
     );

@@ -67,12 +67,13 @@ export class OrderUserMutationController {
       }
 
       const { orderId } = req.params;
-      const { reason } = req.body;
+      const { reason } = req.body; // User juga kirim reason
 
       await this.orderCancellationService.cancelOrder({
         orderId: Number(orderId),
         userId: req.user.id,
-        reason,
+        reason: reason || "No reason provided",
+        role: "USER", // <--- PENTING: Menandakan ini User yg cancel
       });
 
       res

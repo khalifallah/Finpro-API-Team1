@@ -1,0 +1,66 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>{{subject}}</title>
+  </head>
+  <body
+    style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;"
+  >
+    <div
+      style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+    >
+
+      <div style="text-align: center; margin-bottom: 20px;">
+        {{{logoHtml}}}
+      </div>
+
+      <h2 style="color: #333333; text-align: center;">Order Cancelled</h2>
+
+      <p>Halo <strong>{{userName}}</strong>,</p>
+
+      <p>
+        Kami ingin memberitahukan bahwa pesanan
+        <strong>#{{orderId}}</strong>
+        telah dibatalkan oleh
+        <strong>{{cancelledBy}}</strong>.
+      </p>
+
+      <div
+        style="background-color: #fff5f5; border-left: 4px solid #dc3545; padding: 15px; border-radius: 4px; margin: 20px 0;"
+      >
+        <p
+          style="margin: 0; color: #dc3545; font-weight: bold; font-size: 14px;"
+        >Alasan Pembatalan:</p>
+        <p style="margin: 5px 0 0 0; color: #333;">{{reason}}</p>
+      </div>
+
+      <div
+        style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;"
+      >
+        <p style="margin: 5px 0;"><strong>Order ID:</strong> {{orderId}}</p>
+        <p style="margin: 5px 0;"><strong>Status:</strong>
+          <span style="color: #dc3545; font-weight: bold;">CANCELLED</span>
+        </p>
+      </div>
+
+      <p>Anda dapat melihat detail pesanan Anda dengan mengklik tombol di bawah
+        ini:</p>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <a
+          href="{{orderDetailLink}}"
+          style="background-color: #8f4e4e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"
+        >
+          Lihat Detail Pesanan
+        </a>
+      </div>
+
+      <p
+        style="color: #666; font-size: 12px; margin-top: 30px; text-align: center; border-top: 1px solid #eee; padding-top: 20px;"
+      >
+        Terima kasih telah berbelanja di Grocery App.<br />
+        Jika Anda memiliki pertanyaan, silakan hubungi customer service kami.
+      </p>
+    </div>
+  </body>
+</html>

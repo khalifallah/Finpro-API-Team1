@@ -89,6 +89,13 @@ router.patch(
   OrderController.updateOrderStatus
 );
 
+router.post(
+  "/admin/:orderId/cancel",
+  requireVerifiedUser,
+  requirePermission("manage_orders"),
+  OrderController.CancelOrderbyAdmin
+);
+
 // User order routes
 router.get("/", requireVerifiedUser, OrderController.getUserOrders);
 

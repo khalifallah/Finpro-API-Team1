@@ -27,6 +27,7 @@ export class EmailService implements IEmailService {
     referralReward: HandlebarsTemplateDelegate;
     welcomeDiscount: HandlebarsTemplateDelegate;
     orderStatus: HandlebarsTemplateDelegate;
+    orderCancellation: HandlebarsTemplateDelegate;
   };
 
   constructor() {
@@ -41,6 +42,7 @@ export class EmailService implements IEmailService {
       referralReward: this.loadTemplate("referral-reward.hbs"),
       welcomeDiscount: this.loadTemplate("welcome-discount.hbs"),
       orderStatus: this.loadTemplate("order-status.hbs"),
+      orderCancellation: this.loadTemplate("order-cancellation-massage.hbs"),
     };
   }
 
@@ -53,6 +55,17 @@ export class EmailService implements IEmailService {
     } catch (error) {
       console.error(`Error loading template ${templateName}:`, error);
       throw new Error(`Failed to load template: ${templateName}`);
+    }
+  }
+
+  private formatInvoiceId(id: number, date: Date | string): string {
+    try {
+      const d = new Date(date);
+      const day = d.getDate().toString().padStart(2, "0");
+      const month = (d.getMonth() + 1).toString().padStart(2, "0"); // Bulan mulai dari 0
+      return `#INV-${day}${month}${id}`;
+    } catch (error) {
+      return `#INV-${id}`;
     }
   }
 
@@ -233,16 +246,19 @@ export class EmailService implements IEmailService {
     to: string,
     userName: string,
     orderId: number,
+    orderDate: Date,
     totalAmount: number,
     status: string,
     subject: string,
     message: string
   ): Promise<void> {
     // Link ke detail order di frontend (Sesuaikan CLIENT_URL kamu)
-    const orderDetailLink = `${CLIENT_URL}/user/orders/${orderId}`;
+    const orderDetailLink = `${CLIENT_URL}/orders/${orderId}`;
 
     // Format mata uang (Optional, biar rapi Rp 150.000)
     const formattedAmount = new Intl.NumberFormat("id-ID").format(totalAmount);
+
+    const formattedInvoiceId = this.formatInvoiceId(orderId, orderDate);
 
     console.log(`Sending order status email (${status}) to ${to}`);
 
@@ -253,7 +269,7 @@ export class EmailService implements IEmailService {
         title: subject,
         userName: userName,
         message: message,
-        orderId: orderId,
+        orderId: formattedInvoiceId,
         totalAmount: formattedAmount,
         status: status, // PROCESSING / SHIPPED / REJECTED
         orderDetailLink: orderDetailLink,
@@ -262,7 +278,7 @@ export class EmailService implements IEmailService {
       await Transporter.sendMail({
         from: `Grocery App <${NODEMAILER_USER}>`,
         to: to,
-        subject: `Update Pesanan #${orderId}: ${subject}`,
+        subject: `Update Pesanan #${formattedInvoiceId}: ${subject}`,
         html: html,
       });
 
@@ -270,6 +286,53 @@ export class EmailService implements IEmailService {
     } catch (emailError) {
       console.error("Error sending order status email:", emailError);
       // Jangan throw error agar tidak membatalkan proses update order di controller
+    }
+  }
+
+  async sendCancellationEmail(params: {
+    to: string;
+    subject: string;
+    userName: string;
+    orderId: number;
+    orderDate: Date;
+    reason: string;
+    cancelledBy: string;
+  }) {
+    console.log(`Sending cancellation email to ${params.to}`);
+
+    const orderDetailLink = `${CLIENT_URL}/orders/${params.orderId}`;
+
+    const formattedInvoiceId = this.formatInvoiceId(
+      params.orderId,
+      params.orderDate
+    );
+
+    try {
+      // Compile HTML pakai Template Handlebars
+      const html = this.templates.orderCancellation({
+        logoHtml: this.getLogoHtml(), // Include Logo
+        subject: params.subject,
+        userName: params.userName,
+        orderId: formattedInvoiceId,
+        reason: params.reason,
+        cancelledBy: params.cancelledBy,
+        orderDetailLink: orderDetailLink,
+      });
+
+      await Transporter.sendMail({
+        from: `Grocery App <${NODEMAILER_USER}>`, // Konsisten pakai config
+        to: params.to,
+        subject: params.subject.replace(
+          `#${params.orderId}`,
+          formattedInvoiceId
+        ),
+        html: html,
+      });
+
+      console.log(`Cancellation email successfully sent to ${params.to}`);
+    } catch (emailError) {
+      console.error("Error sending cancellation email:", emailError);
+      // Optional: throw error jika ingin controller tau email gagal
     }
   }
 }

@@ -138,10 +138,8 @@ export class CartService {
   // 2. DAPATKAN CART USER (FILTERED BY STORE)
   async getUserCart(userId: number, storeId?: number): Promise<any> {
     try {
-      // Logic Filter: Hanya ambil item yang tidak dihapus
       const itemWhereClause: any = { deletedAt: null };
 
-      // [UPDATE] Jika storeId dikirim, filter item milik toko itu saja
       if (storeId) {
         itemWhereClause.storeId = storeId;
       }
@@ -150,8 +148,8 @@ export class CartService {
         where: { userId },
         include: {
           cartItems: {
-            where: itemWhereClause, // Terapkan filter di sini
-            orderBy: { createdAt: "desc" }, // Urutkan dari yang terbaru
+            where: itemWhereClause,
+            orderBy: { createdAt: "desc" },
             include: {
               product: {
                 include: {
@@ -160,8 +158,6 @@ export class CartService {
                   // Include stok untuk validasi di frontend
                   productStocks: {
                     where: {
-                      // Ambil stok sesuai toko item tersebut
-                      // Jika storeId ada di param, pakai itu. Jika tidak, tetap valid karena filter item sudah jalan.
                       storeId: storeId,
                       deletedAt: null,
                     },
@@ -178,29 +174,47 @@ export class CartService {
         return { cartItems: [], totalItems: 0, subtotal: 0 };
       }
 
+      const enrichedItems = await this.calculateDiscounts(
+        cart.cartItems,
+        storeId
+      );
+
       // Hitung ulang total (karena item mungkin terfilter)
       let totalItems = 0;
       let subtotal = 0;
+      let originalSubtotal = 0;
 
-      const itemsWithStock = cart.cartItems.map((item: any) => {
+      const finalItems = enrichedItems.map((item: any) => {
         totalItems += item.quantity;
-        subtotal += item.product.defaultPrice * item.quantity;
+        subtotal += item.totalPrice;
+        originalSubtotal += item.originalPrice * item.quantity;
 
-        // Ambil info stok untuk properti 'stockAvailable'
-        // Karena kita sudah filter productStocks di include atas, array ini harusnya cuma isi 1 atau 0
         const availableStock = item.product.productStocks[0]?.quantity || 0;
 
         return {
-          ...item,
+          id: item.id,
+          productId: item.productId,
+          storeId: item.storeId,
+          quantity: item.quantity,
+          product: {
+            ...item.product,
+            productStocks: undefined,
+          },
           stockAvailable: availableStock,
+
+          originalPrice: item.originalPrice,
+          finalPrice: item.totalPrice,
+          discountAmount: item.discountAmount,
+          appliedDiscount: item.appliedDiscount,
         };
       });
 
       return {
         ...cart,
-        cartItems: itemsWithStock,
+        cartItems: finalItems,
         totalItems,
         subtotal,
+        originalSubtotal,
       };
     } catch (error) {
       console.error("Get user cart error:", error);
@@ -381,5 +395,88 @@ export class CartService {
       console.error("Get cart summary error:", error);
       throw new AppError("Failed to get cart summary", 500);
     }
+  }
+  private async calculateDiscounts(cartItems: any[], storeIdFilter?: number) {
+    if (!cartItems.length) return [];
+
+    console.log(
+      `[DEBUG DISCOUNT] Checking discounts for ${cartItems.length} items...`
+    );
+
+    // 1. Ambil ID semua produk di cart
+    const productIds = cartItems.map((i) => i.productId);
+
+    // 2. Cari Discount Rule yang AKTIF untuk produk-produk tersebut
+    // Jika storeIdFilter ada (user lagi lihat cart toko tertentu), filter rule toko itu saja
+    const whereClause: any = {
+      productId: { in: productIds },
+      is_active: true,
+      deletedAt: null,
+      startDate: { lte: new Date() }, // Pastikan sudah mulai
+      endDate: { gte: new Date() }, // Pastikan belum berakhir
+    };
+
+    if (storeIdFilter) {
+      whereClause.storeId = storeIdFilter;
+    }
+
+    const rules = await prisma.discountRule.findMany({
+      where: whereClause,
+    });
+
+    console.log(
+      `[DEBUG DISCOUNT] Found ${rules.length} active rules for Store ID: ${storeIdFilter}`
+    );
+    if (rules.length > 0) console.log("[DEBUG DISCOUNT] Rules:", rules);
+
+    // 3. Map items dengan kalkulasi harga
+    return cartItems.map((item) => {
+      // Cari rule yang cocok untuk item ini (Product ID & Store ID cocok)
+      const rule = rules.find(
+        (r) => r.productId === item.productId && r.storeId === item.storeId
+      );
+
+      const originalPrice = item.product.defaultPrice;
+      const originalTotal = originalPrice * item.quantity;
+      let discountAmount = 0;
+
+      // Logika hitung diskon (Sama dengan CheckoutService)
+      if (rule) {
+        // Cek Min Purchase
+        if (originalTotal >= rule.minPurchase) {
+          if (rule.type === "DIRECT_PERCENTAGE") {
+            discountAmount = Math.round(
+              (originalTotal * (rule.value || 0)) / 100
+            );
+            if (
+              rule.maxDiscountAmount &&
+              discountAmount > rule.maxDiscountAmount
+            ) {
+              discountAmount = rule.maxDiscountAmount;
+            }
+          } else if (rule.type === "DIRECT_NOMINAL") {
+            discountAmount = rule.value || 0;
+          } else if (rule.type === "BOGO") {
+            // Logic Beli 1 Gratis 1 (Kelipatan 2)
+            const freeUnits = Math.floor(item.quantity / 2);
+            discountAmount = freeUnits * originalPrice;
+          }
+        }
+      }
+
+      // Safety: Diskon tidak boleh melebihi harga asli
+      if (discountAmount > originalTotal) discountAmount = originalTotal;
+
+      return {
+        ...item,
+        originalPrice: originalPrice,
+        price: originalPrice, // Harga satuan dasar
+        totalPrice: originalTotal - discountAmount, // Harga Akhir Item (Net)
+        discountAmount: discountAmount, // Info potongan (untuk UI coret harga)
+        appliedDiscount: rule
+          ? { type: rule.type, name: rule.description }
+          : null,
+      };
+    });
   }
 }

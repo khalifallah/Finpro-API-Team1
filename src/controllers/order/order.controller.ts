@@ -43,4 +43,8 @@ export class OrderController {
   static async updateOrderStatus(req: any, res: any, next: any) {
     return orderAdminController.updateOrderStatus(req, res, next);
   }
+
+  static async CancelOrderbyAdmin(req: any, res: any, next: any) {
+    return orderAdminController.cancelOrder(req, res, next);
+  }
 }

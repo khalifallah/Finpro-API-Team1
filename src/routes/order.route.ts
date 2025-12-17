@@ -129,4 +129,16 @@ router.post(
 
 router.get("/:orderId", requireVerifiedUser, OrderController.getOrderDetail);
 
+router.get(
+  "/shipping/cities",
+  requireVerifiedUser,
+  ShippingController.getRajaOngkirCities
+);
+
+router.get(
+  "/shipping/provinces",
+  requireVerifiedUser,
+  ShippingController.getRajaOngkirProvinces
+);
+
 export default router;

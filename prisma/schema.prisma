@@ -68,6 +68,8 @@ model UserAddress {
   fullAddress    String    @map("full_address")
   latitude       Decimal   @db.Decimal(10, 8)
   longitude      Decimal   @db.Decimal(11, 8)
+  cityId         String?   @map("city_id") @db.VarChar(10) // RajaOngkir city_id
+  provinceId     String?   @map("province_id") @db.VarChar(10) // RajaOngkir province_id
   isMain         Boolean   @default(false) @map("is_main")
   deletedAt      DateTime? @map("deleted_at")
   recipientName  String    @map("recipient_name")
@@ -97,9 +99,11 @@ model Store {
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
   name               String              @db.VarChar(255)
-  address            String?
+  address            String
   latitude           Decimal             @db.Decimal(10, 8)
   longitude          Decimal             @db.Decimal(11, 8)
+  cityId             String?             @map("city_id") @db.VarChar(10) // Raja Ongkir City ID
+  provinceId         String?             @map("province_id") @db.VarChar(10) // RajaOngkir province_id
   deletedAt          DateTime?           @map("deleted_at")
   discountRules      DiscountRule[]
   orders             Order[]
@@ -117,8 +121,9 @@ model ShippingConfig {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
   storeId       Int       @map("store_id")
+  courierCode   String    @map("courier_code") @db.VarChar(255) // jne, pos, tiki
+  serviceCode   String    @map("service_code") @db.VarChar(255) // REG, OKE, YES
   serviceName   String    @map("service_name") @db.VarChar(255)
-  serviceCode   String    @map("service_code") @db.VarChar(255)
   description   String?
   cost          Int
   estimatedDays String    @map("estimated_days") @db.VarChar(50)

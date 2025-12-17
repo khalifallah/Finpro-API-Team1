@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import { ShippingService } from "../services/shipping.service";
 import { CheckoutService } from "../services/checkout.service";
+import { RajaOngkirService } from "../services/rajaongkir.service";
 import AppError from "../errors/app.error";
 import { responseBuilder } from "../utils/response.builder";
+import { OrderService } from "../services/order/order.service";
 
 const shippingService = new ShippingService();
 const checkoutService = new CheckoutService();
@@ -31,6 +33,14 @@ export class ShippingController {
         req.user.id
       );
 
+      // Validasi address memiliki cityId
+      if (!address.cityId) {
+        throw new AppError(
+          "Please update your address with city information",
+          400
+        );
+      }
+
       // *** FIX: Use provided storeId or find nearest ***
       let selectedStore;
       if (storeId) {
@@ -42,7 +52,15 @@ export class ShippingController {
         selectedStore = nearestStore.store;
       }
 
-      // Hitung shipping cost
+      // Validasi store memiliki cityId
+      if (!selectedStore.cityId) {
+        throw new AppError(
+          "Selected store does not have city configuration",
+          400
+        );
+      }
+
+      // Hitung shipping cost via RajaOngkir
       const shippingResult = await shippingService.calculateShippingForCheckout(
         selectedStore.id,
         address,
@@ -93,42 +111,75 @@ export class ShippingController {
   }
 
   // Validate checkout sebelum proses
-  static async validateCheckout(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> {
+  static async validateCheckout(req: Request, res: Response) {
     try {
-      if (!req.user) {
-        throw new AppError("User not authenticated", 401);
+      console.log("[DEBUG] validateCheckout called with body:", req.body);
+      console.log("[DEBUG] User ID:", (req as any).user?.id);
+      const userId = (req as any).user.id;
+      const { addressId, shippingMethod, storeId, voucherCode } = req.body;
+
+      // Validate inputs
+      if (!addressId || !shippingMethod || !storeId) {
+        throw new AppError("Missing required fields", 400);
       }
 
-      const { addressId, shippingMethod, storeId } = req.body; // Add storeId
+      const shippingService = new ShippingService();
+      const orderService = new OrderService();
 
-      if (!addressId || !shippingMethod) {
-        throw new AppError("Address ID and shipping method are required", 400);
-      }
+      // Get address
+      const address = await shippingService.getAddressById(addressId, userId);
 
-      const validation = await checkoutService.validateCheckout({
-        userId: req.user.id,
+      // Get store
+      const store = await shippingService.getStoreById(storeId);
+
+      // Calculate shipping
+      const shippingResult = await shippingService.calculateShippingForCheckout(
+        storeId,
+        address,
+        1000, // Default weight, adjust as needed
+        shippingMethod
+      );
+
+      // Validate checkout (check stock, prices, etc.)
+      const validationResult = await orderService.validateCheckout({
+        userId,
+        storeId,
         addressId,
         shippingMethod,
-        storeId, // Pass storeId if provided
+        voucherCode,
       });
 
-      res.status(200).json(
-        responseBuilder(200, "Checkout validation successful", {
-          isValid: validation.isValid,
-          userAddress: validation.userAddress,
-          selectedStore: validation.selectedStore,
-          shippingCost: validation.shippingCost,
-          distance: validation.distance,
-          subtotal: validation.subtotal,
-          availableShippingMethods: validation.availableShippingMethods,
-        })
-      );
+      // Combine results
+      const result = {
+        ...validationResult,
+        distance: shippingResult.distance,
+        shippingCost: shippingResult.totalShippingCost,
+        availableShippingMethods: shippingResult.availableServices,
+        selectedShippingMethod: shippingResult.selectedService,
+        address,
+        store,
+      };
+
+      res.status(200).json({
+        status: 200,
+        message: "Checkout validation successful",
+        data: result,
+      });
     } catch (error) {
-      next(error);
+      if (error instanceof AppError) {
+        res.status((error as any).statusCode).json({
+          status: (error as any).statusCode,
+          message: error.message,
+          data: null,
+        });
+      } else {
+        console.error("Validate checkout error:", error);
+        res.status(500).json({
+          status: 500,
+          message: "Internal server error",
+          data: null,
+        });
+      }
     }
   }
 
@@ -199,6 +250,48 @@ export class ShippingController {
         responseBuilder(200, "Distance calculated successfully", {
           distance: parseFloat(distance.toFixed(2)),
           store,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Get RajaOngkir cities (untuk autocomplete di frontend)
+  static async getRajaOngkirCities(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { provinceId } = req.query;
+
+      const rajaongkirService = new RajaOngkirService();
+      const cities = await rajaongkirService.getCities(provinceId?.toString());
+
+      res.status(200).json(
+        responseBuilder(200, "Cities retrieved successfully", {
+          cities,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Get RajaOngkir provinces
+  static async getRajaOngkirProvinces(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const rajaongkirService = new RajaOngkirService();
+      const provinces = await rajaongkirService.getProvinces();
+
+      res.status(200).json(
+        responseBuilder(200, "Provinces retrieved successfully", {
+          provinces,
         })
       );
     } catch (error) {

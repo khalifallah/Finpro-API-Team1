@@ -1,26 +1,23 @@
 import prisma from "../libs/prisma";
 import AppError from "../errors/app.error";
-import axios from "axios";
+import { RajaOngkirService, RajaOngkirCostParams } from "./rajaongkir.service";
 import { AddressService } from "./address.service";
 
 export interface ICalculateShippingParams {
-  origin: {
-    cityId: string;
-    cityName: string;
-  };
-  destination: {
-    cityId: string;
-    cityName: string;
-  };
-  weight: number; // dalam gram
-  courier: string; // jne, pos, tiki, dll
+  originCityId: string;
+  destinationCityId: string;
+  weight: number;
+  courier: string;
 }
 
 export interface IShippingService {
-  service: string;
+  serviceCode: string;
+  name: string;
   description: string;
   cost: number;
-  etd: string; // estimated time of delivery
+  etd: string;
+  courier: string;
+  maxDistance?: number;
 }
 
 export interface ICoordinate {
@@ -29,18 +26,16 @@ export interface ICoordinate {
 }
 
 export class ShippingService {
-  private rajaOngkirApiKey: string;
-  private rajaOngkirBaseUrl: string;
-  private addressService: AddressService; // Add this
+  private rajaongkirService: RajaOngkirService;
+  private addressService: AddressService;
 
   constructor() {
-    this.rajaOngkirApiKey = process.env.RAJAONGKIR_API_KEY || "";
-    this.rajaOngkirBaseUrl =
-      process.env.RAJAONGKIR_BASE_URL || "https://api.rajaongkir.com/starter";
-    this.addressService = new AddressService(); // Initialize here
+    this.rajaongkirService = new RajaOngkirService();
+    this.addressService = new AddressService();
   }
 
-  // Replace this throwing method:
+  // --- Helper ---
+
   async getAddressById(addressId: number, userId: number): Promise<any> {
     try {
       return await this.addressService.getAddressById(addressId, userId);
@@ -54,38 +49,32 @@ export class ShippingService {
     const store = await prisma.store.findUnique({
       where: { id: storeId },
     });
-
     if (!store) {
       throw new AppError("Store not found", 404);
     }
-
     return store;
   }
 
-  // 1. Hitung jarak menggunakan Haversine formula
   calculateDistance(coord1: ICoordinate, coord2: ICoordinate): number {
-    const R = 6371; // Radius bumi dalam kilometer
+    const R = 6371;
     const dLat = this.deg2rad(coord2.latitude - coord1.latitude);
     const dLon = this.deg2rad(coord2.longitude - coord1.longitude);
-
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(this.deg2rad(coord1.latitude)) *
         Math.cos(this.deg2rad(coord2.latitude)) *
         Math.sin(dLon / 2) *
         Math.sin(dLon / 2);
-
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c; // Jarak dalam kilometer
-
-    return distance;
+    return parseFloat((R * c).toFixed(2));
   }
 
   private deg2rad(deg: number): number {
     return deg * (Math.PI / 180);
   }
 
-  // 2. Cek cache shipping cost dari database
+  // --- Caching ---
+
   async getCachedShippingCost(
     storeId: number,
     originCityId: string,
@@ -105,16 +94,11 @@ export class ShippingService {
     });
 
     if (cached) {
-      return {
-        cost: cached.cost,
-        etd: cached.estimatedDays,
-      };
+      return { cost: cached.cost, etd: cached.estimatedDays };
     }
-
     return null;
   }
 
-  // 3. Simpan shipping cost ke cache
   async cacheShippingCost(
     storeId: number,
     originCityId: string,
@@ -124,9 +108,7 @@ export class ShippingService {
     cost: number,
     etd: string
   ): Promise<void> {
-    // Set expire dalam 1 hari
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
     await prisma.shippingCostCache.upsert({
       where: {
         storeId_originCityId_destinationCityId_serviceCode: {
@@ -156,134 +138,124 @@ export class ShippingService {
     });
   }
 
-  // 4. Hitung shipping cost menggunakan RajaOngkir API
+  // --- Raja Ongkir Calculation ---
+
   async calculateShippingRajaOngkir(
     params: ICalculateShippingParams
   ): Promise<IShippingService[]> {
-    if (!this.rajaOngkirApiKey) {
-      throw new AppError("RajaOngkir API key not configured", 500);
-    }
-
     try {
-      const response = await axios.post(
-        `${this.rajaOngkirBaseUrl}/cost`,
-        {
-          origin: params.origin.cityId,
-          destination: params.destination.cityId,
-          weight: params.weight,
-          courier: params.courier,
-        },
-        {
-          headers: {
-            key: this.rajaOngkirApiKey,
-            "content-type": "application/x-www-form-urlencoded",
-          },
-        }
-      );
+      const rajaongkirParams: RajaOngkirCostParams = {
+        origin: params.originCityId,
+        destination: params.destinationCityId,
+        weight: params.weight,
+        courier: params.courier,
+      };
 
-      if (response.data.rajaongkir.status.code !== 200) {
-        throw new AppError(
-          `RajaOngkir API error: ${response.data.rajaongkir.status.description}`,
-          400
+      const results = await this.rajaongkirService.getCost(rajaongkirParams);
+
+      if (!results || !Array.isArray(results) || results.length === 0) {
+        console.warn(
+          `[SHIPPING] RajaOngkir returned empty/invalid for ${params.courier}, using fallback.`
         );
+        return this.calculateShippingFallback(params);
       }
 
-      const results: IShippingService[] = [];
-      const courierResults = response.data.rajaongkir.results[0];
+      const shippingServices: IShippingService[] = [];
 
-      if (courierResults && courierResults.costs) {
-        for (const cost of courierResults.costs) {
-          results.push({
-            service: cost.service,
-            description: cost.description,
-            cost: cost.cost[0].value,
-            etd: cost.cost[0].etd,
-          });
+      for (const courierResult of results) {
+        if (courierResult.costs && Array.isArray(courierResult.costs)) {
+          for (const cost of courierResult.costs) {
+            shippingServices.push({
+              serviceCode: cost.service, // e.g. "REG"
+              name: `${courierResult.code.toUpperCase()} ${cost.service}`,
+              description: cost.description,
+              cost: cost.cost[0].value,
+              etd: cost.cost[0].etd,
+              courier: courierResult.code, // e.g. "jne"
+            });
+          }
         }
       }
 
-      return results;
-    } catch (error: any) {
-      console.error("RajaOngkir API error:", error);
+      // Jika parsing API berhasil tapi kosong, fallback
+      if (shippingServices.length === 0) {
+        return this.calculateShippingFallback(params);
+      }
 
-      // Fallback ke perhitungan manual jika API gagal
+      return shippingServices;
+    } catch (error) {
+      console.error("RajaOngkir calculation error:", error);
       return this.calculateShippingFallback(params);
     }
   }
 
-  // 5. Fallback calculation jika API tidak tersedia
+  // --- Fallback Calculation ---
+
   private calculateShippingFallback(
     params: ICalculateShippingParams
   ): IShippingService[] {
-    // Default shipping options dengan perkiraan biaya
-    const baseCost = 15000; // Biaya dasar
-    const perKgCost = 5000; // Biaya per kg
+    console.log("[SHIPPING] Using Fallback Calculation");
+    const baseCost = 10000;
+    const perKgCost = 5000;
+    const weightInKg = Math.ceil(params.weight / 1000);
+    const estimatedCost = Math.max(baseCost, weightInKg * perKgCost);
 
-    const weightInKg = params.weight / 1000;
-    const estimatedCost = Math.max(
-      baseCost,
-      Math.round(weightInKg * perKgCost)
-    );
-
+    // Pastikan serviceCode sesuai dengan yang ada di database seed (REG, OKE, YES)
     return [
       {
-        service: "REG",
-        description: "Reguler",
+        serviceCode: "REG",
+        name: `${params.courier.toUpperCase()} Reguler (Fallback)`,
+        description: "Layanan reguler (Estimasi)",
         cost: estimatedCost,
-        etd: "2-3 hari",
+        etd: "3-5 hari",
+        courier: params.courier,
       },
       {
-        service: "ECO",
-        description: "Economy",
-        cost: Math.round(estimatedCost * 0.8),
-        etd: "4-5 hari",
+        serviceCode: "OKE",
+        name: `${params.courier.toUpperCase()} OKE (Fallback)`,
+        description: "Ongkos Kirim Ekonomis (Estimasi)",
+        cost: Math.max(10000, estimatedCost * 0.8),
+        etd: "5-7 hari",
+        courier: params.courier,
       },
       {
-        service: "YES",
-        description: "Same Day",
-        cost: Math.round(estimatedCost * 2),
-        etd: "1 hari",
+        serviceCode: "YES",
+        name: `${params.courier.toUpperCase()} YES (Fallback)`,
+        description: "Yakin Esok Sampai (Estimasi)",
+        cost: estimatedCost * 1.5,
+        etd: "1-2 hari",
+        courier: params.courier,
       },
     ];
   }
 
-  // 6. Get available shipping services untuk store
   async getStoreShippingServices(storeId: number): Promise<any[]> {
     return await prisma.shippingConfig.findMany({
-      where: {
-        storeId,
-        isActive: true,
-        deletedAt: null,
-      },
-      orderBy: {
-        cost: "asc",
-      },
+      where: { storeId, isActive: true, deletedAt: null },
+      orderBy: { cost: "asc" },
     });
   }
 
-  // 7. Hitung shipping cost untuk checkout
+  // --- Main Calculation Method (MODIFIED) ---
+
   async calculateShippingForCheckout(
     storeId: number,
     userAddress: any,
     weight: number,
     selectedService?: string
   ): Promise<{
-    availableServices: any[];
-    selectedService?: any;
+    availableServices: IShippingService[];
+    selectedService?: IShippingService;
     totalShippingCost: number;
     distance: number;
   }> {
     try {
-      // Dapatkan store information
-      const store = await prisma.store.findUnique({
-        where: { id: storeId },
-      });
-
-      if (!store) {
-        throw new AppError("Store not found", 404);
+      const store = await prisma.store.findUnique({ where: { id: storeId } });
+      if (!store) throw new AppError("Store not found", 404);
+      if (!store.cityId || !userAddress.cityId) {
+        throw new AppError("Missing city configuration", 400);
       }
 
-      // Hitung jarak antara alamat user dan store yang dipilih
       const distance = this.calculateDistance(
         {
           latitude: Number(userAddress.latitude),
@@ -295,46 +267,133 @@ export class ShippingService {
         }
       );
 
-      // Dapatkan konfigurasi shipping dari store yang dipilih
-      const shippingServices = await this.getStoreShippingServices(storeId);
-
-      // Check if shipping services exist
-      if (shippingServices.length === 0) {
-        console.warn(`No shipping services configured for store ${storeId}`);
-        throw new AppError(
-          "No shipping services available for the selected store",
-          400
-        );
+      // Ambil Config dari DB (apa yang toko support)
+      const shippingConfigs = await this.getStoreShippingServices(storeId);
+      if (shippingConfigs.length === 0) {
+        throw new AppError("No shipping services configured", 400);
       }
 
-      // Filter services berdasarkan jarak maksimum
-      const availableServices = shippingServices.filter(
-        (service) => !service.maxDistance || distance <= service.maxDistance
+      const allServices: IShippingService[] = [];
+      // Grouping configs by courier code to avoid multiple API calls for same courier
+      const uniqueCouriers = Array.from(
+        new Set(shippingConfigs.map((c) => c.courierCode))
       );
 
-      if (availableServices.length === 0) {
-        throw new AppError(
-          "No shipping services available for this distance",
-          400
-        );
-      }
+      for (const courierCode of uniqueCouriers) {
+        try {
+          // 1. Cek API / Fallback untuk kurir ini
+          const apiServices = await this.calculateShippingRajaOngkir({
+            originCityId: store.cityId,
+            destinationCityId: userAddress.cityId,
+            weight,
+            courier: courierCode,
+          });
 
-      // Jika ada selected service, validasi
-      let selectedServiceData = null;
-      if (selectedService) {
-        selectedServiceData = availableServices.find(
-          (service) => service.serviceCode === selectedService
-        );
+          // 2. Filter hasil API sesuai dengan config DB (match serviceCode)
+          const supportedServicesForCourier = shippingConfigs.filter(
+            (c) => c.courierCode === courierCode
+          );
 
-        if (!selectedServiceData) {
-          throw new AppError("Selected shipping service not available", 400);
+          for (const dbConfig of supportedServicesForCourier) {
+            // Check Cache first
+            const cached = await this.getCachedShippingCost(
+              storeId,
+              store.cityId,
+              userAddress.cityId,
+              dbConfig.serviceCode
+            );
+
+            if (cached) {
+              allServices.push({
+                serviceCode: dbConfig.serviceCode,
+                name: dbConfig.serviceName,
+                description: dbConfig.description,
+                cost: cached.cost,
+                etd: cached.etd,
+                courier: dbConfig.courierCode,
+              });
+              continue;
+            }
+
+            // Find matching service from API result (Case Insensitive Match)
+            const matchedFromApi = apiServices.find(
+              (s) =>
+                s.serviceCode.toLowerCase() ===
+                dbConfig.serviceCode.toLowerCase()
+            );
+
+            if (matchedFromApi) {
+              // Cache it
+              await this.cacheShippingCost(
+                storeId,
+                store.cityId,
+                userAddress.cityId,
+                dbConfig.serviceCode,
+                matchedFromApi.name,
+                matchedFromApi.cost,
+                matchedFromApi.etd
+              );
+
+              // Push to result
+              allServices.push({
+                ...matchedFromApi,
+                // Override name/description from DB config for consistency if needed,
+                // or use API's. Here we use API's name but keep DB's code.
+                serviceCode: dbConfig.serviceCode,
+              });
+            } else {
+              // OPTIONAL: Force Fallback jika DB minta 'REG' tapi API tidak kasih 'REG'
+              // Ini berguna jika API error parsial.
+              console.log(
+                `[SHIPPING] Warning: Service ${dbConfig.serviceCode} configured in DB but not returned by API/Fallback.`
+              );
+            }
+          }
+        } catch (err) {
+          console.error(`Error processing courier ${courierCode}:`, err);
         }
       }
 
-      // Hitung total shipping cost dengan weight factor
+      // [CRITICAL FIX] Jika setelah filter hasilnya kosong, gunakan Fallback Murni
+      // berdasarkan config database tanpa peduli response API
+      if (allServices.length === 0) {
+        console.warn(
+          "[SHIPPING] No services matched. Forcing fallback based on DB Config."
+        );
+        for (const config of shippingConfigs) {
+          // Hitung biaya manual kasar
+          const fallbackCost = Math.max(10000, Math.ceil(weight / 1000) * 5000);
+          allServices.push({
+            serviceCode: config.serviceCode,
+            name: `${config.courierCode.toUpperCase()} ${
+              config.serviceName
+            } (Emergency)`,
+            description: "Pengiriman (Estimasi System)",
+            cost: fallbackCost,
+            etd: "3-7 Days",
+            courier: config.courierCode,
+          });
+        }
+      }
+
+      // Filter by max distance
+      const availableServices = allServices.filter(
+        (service) => !service.maxDistance || distance <= service.maxDistance
+      );
+
+      // Handle Selection
+      let selectedServiceData = undefined;
+      if (selectedService) {
+        selectedServiceData = availableServices.find(
+          (s) => s.serviceCode === selectedService
+        );
+      }
+
+      // Jika user belum pilih, atau pilihan user tidak valid lagi, jangan auto-select (biar frontend handle),
+      // ATAU default ke yang termurah (opsional, disini kita return undefined biar user pilih).
       const totalShippingCost = selectedServiceData
-        ? Math.round(selectedServiceData.cost * (weight / 1000))
-        : Math.round(availableServices[0].cost * (weight / 1000));
+        ? selectedServiceData.cost
+        : 0;
 
       return {
         availableServices,
@@ -343,59 +402,43 @@ export class ShippingService {
         distance,
       };
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
+      if (error instanceof AppError) throw error;
       console.error("Shipping calculation error:", error);
       throw new AppError("Failed to calculate shipping", 500);
     }
   }
 
-  // 8. Get nearest store to user address
   async findNearestStore(userAddress: any): Promise<any> {
     const stores = await prisma.store.findMany({
-      where: {
-        deletedAt: null,
-      },
+      where: { deletedAt: null, cityId: { not: null } },
     });
 
-    if (stores.length === 0) {
-      throw new AppError("No store available", 404);
-    }
+    if (stores.length === 0) throw new AppError("No store available", 404);
 
     let nearestStore = stores[0];
-    let minDistance = this.calculateDistance(
-      {
-        latitude: Number(userAddress.latitude),
-        longitude: Number(userAddress.longitude),
-      },
-      {
-        latitude: Number(stores[0].latitude),
-        longitude: Number(stores[0].longitude),
-      }
-    );
+    let minDistance = Infinity;
 
-    for (let i = 1; i < stores.length; i++) {
+    for (const store of stores) {
       const distance = this.calculateDistance(
         {
           latitude: Number(userAddress.latitude),
           longitude: Number(userAddress.longitude),
         },
         {
-          latitude: Number(stores[i].latitude),
-          longitude: Number(stores[i].longitude),
+          latitude: Number(store.latitude),
+          longitude: Number(store.longitude),
         }
       );
 
       if (distance < minDistance) {
         minDistance = distance;
-        nearestStore = stores[i];
+        nearestStore = store;
       }
     }
 
-    return {
-      store: nearestStore,
-      distance: minDistance,
-    };
+    // Jika minDistance masih Infinity (bug logic), ambil stores[0]
+    if (minDistance === Infinity) minDistance = 0;
+
+    return { store: nearestStore, distance: minDistance };
   }
 }

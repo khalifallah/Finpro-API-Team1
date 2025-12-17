@@ -10,6 +10,8 @@ export interface ICreateAddressParam {
   recipientName: string;
   recipientPhone?: string;
   isMain?: boolean;
+  cityId: string;
+  provinceId: string;
 }
 
 export interface IUpdateAddressParam {
@@ -20,6 +22,8 @@ export interface IUpdateAddressParam {
   recipientName?: string;
   recipientPhone?: string;
   isMain?: boolean;
+  cityId?: string;
+  provinceId?: string;
 }
 
 export class AddressService {
@@ -52,6 +56,8 @@ export class AddressService {
             recipientName: data.recipientName,
             recipientPhone: data.recipientPhone,
             isMain: data.isMain || false,
+            cityId: data.cityId,
+            provinceId: data.provinceId,
           },
         });
 
@@ -147,6 +153,8 @@ export class AddressService {
           where: { id: addressId },
           data: {
             ...data,
+            cityId: data.cityId,
+            provinceId: data.provinceId,
             updatedAt: new Date(),
           },
         });

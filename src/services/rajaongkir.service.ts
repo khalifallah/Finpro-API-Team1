@@ -181,7 +181,7 @@ export class RajaOngkirService {
       return results;
     } catch (error: any) {
       console.error(
-        `❌ API Error (${params.courier}):`,
+        `RajaOngkir API Error (${params.courier}):`,
         error.response?.data?.meta?.message || error.message
       );
       // Return empty array instead of throwing, so other couriers can still work
@@ -193,25 +193,31 @@ export class RajaOngkirService {
   async getCities(provinceId?: string): Promise<any> {
     try {
       if (!this.apiKey) throw new Error("No API Key");
+
       const url = provinceId
         ? `${this.baseUrl}/city?province=${provinceId}`
         : `${this.baseUrl}/city`;
+
       const response = await axios.get(url, { headers: { key: this.apiKey } });
       return response.data.rajaongkir.results;
     } catch (error) {
-      return [];
+      console.warn("RajaOngkir API failed for cities, using mock data.");
+      // Return Mock Data on failure
+      return this.getMockCities(provinceId);
     }
   }
-
   async getProvinces(): Promise<any> {
     try {
       if (!this.apiKey) throw new Error("No API Key");
+
       const response = await axios.get(`${this.baseUrl}/province`, {
         headers: { key: this.apiKey },
       });
       return response.data.rajaongkir.results;
     } catch (error) {
-      return [];
+      console.warn("RajaOngkir API failed for provinces, using mock data.");
+      // Return Mock Data on failure
+      return this.getMockProvinces();
     }
   }
 }
